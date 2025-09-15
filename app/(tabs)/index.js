@@ -102,14 +102,24 @@ export default function HomeScreen() {
   // Pan responder for gestures
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !state.isAnimating,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only respond to gestures if not animating and movement is significant
+        const { dx, dy } = gestureState;
+        return !state.isAnimating && (Math.abs(dx) > 10 || Math.abs(dy) > 10);
+      },
+      onPanResponderGrant: () => {
+        // Gesture has started
+      },
+      onPanResponderMove: () => {
+        // Handle move if needed
+      },
 
       onPanResponderRelease: (event, gestureState) => {
         if (state.isAnimating) return;
 
         const { dx, dy } = gestureState;
-        const threshold = 15;
+        const threshold = 20;
 
         if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
 
@@ -121,6 +131,9 @@ export default function HomeScreen() {
         }
 
         handleMove(direction);
+      },
+      onPanResponderTerminate: () => {
+        // Handle gesture termination
       },
     })
   ).current;
@@ -413,13 +426,12 @@ export default function HomeScreen() {
         </View>
 
         <Animated.View
-          style={[styles.board, { width: BOARD_SIZE, height: BOARD_SIZE }]}
           style={[
             styles.board, 
             { 
               width: BOARD_SIZE, 
               height: BOARD_SIZE,
-              transform: [{ translateX: animatedValues.current.board || new Animated.Value(0) }]
+              transform: [{ translateX: animatedValues.current.board }]
             }
           ]}
           {...panResponder.panHandlers}
