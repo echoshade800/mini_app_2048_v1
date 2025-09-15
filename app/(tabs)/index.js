@@ -321,7 +321,11 @@ export default function HomeScreen() {
       })
     );
 
-    Animated.parallel(slideAnims).start(async () => {
+    // Start sliding animation with early board commit at 80%
+    const slideAnimation = Animated.parallel(slideAnims);
+    
+    // Commit board at 80% completion (64ms into 80ms animation)
+    setTimeout(async () => {
       // Commit new board after sliding
       dispatch({ type: 'SET_BOARD', payload: result.board });
       
@@ -347,6 +351,9 @@ export default function HomeScreen() {
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
 
+    }, 64); // 80% of 80ms = 64ms
+
+    slideAnimation.start(() => {
       // Clear ghost tiles
       ghostTilesRef.current = [];
       setIsSliding(false);
