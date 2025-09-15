@@ -177,6 +177,90 @@ export default function HomeScreen() {
     return moves;
   };
 
+// 仅供 UI 动画使用，计算本次合并的落点格子
+const computeMergeTargets = (prevBoard, direction) => {
+  const N = 4;
+  const mergeTargets = []; // [{r,c}]
+
+  const processLine = (cells, isRow, fixedIndex) => {
+    // cells: 按移动方向取出的 4 个单元，形如 [{v, r, c}, ...]
+    const nonEmpty = cells.filter(x => x.v != null);
+    let i = 0, dest = 0;
+    while (i < nonEmpty.length) {
+      if (i + 1 < nonEmpty.length && nonEmpty[i].v === nonEmpty[i + 1].v) {
+        // 合并发生，目标位置 = dest
+        let target;
+        if (isRow) {
+          // 对于左右移动，需要考虑方向
+          const actualDest = (direction === 'left') ? dest : (N - 1 - dest);
+          target = { r: fixedIndex, c: actualDest };
+        } else {
+          // 对于上下移动，需要考虑方向
+          const actualDest = (direction === 'up') ? dest : (N - 1 - dest);
+          target = { r: actualDest, c: fixedIndex };
+        }
+        mergeTargets.push(target);
+        // 合并占 1 格
+        dest += 1;
+        i += 2; // 跳过下一块，避免连锁
+      } else {
+        dest += 1;
+        i += 1;
+      }
+    }
+  };
+
+  if (direction === 'left' || direction === 'right') {
+    for (let r = 0; r < N; r++) {
+      const line = [];
+      for (let c = 0; c < N; c++) {
+        const cc = direction === 'left' ? c : (N - 1 - c);
+        line.push({ v: prevBoard[r][cc], r, c: cc });
+      }
+      processLine(line, true, r);
+    }
+  } else {
+    for (let c = 0; c < N; c++) {
+      const line = [];
+      for (let r = 0; r < N; r++) {
+        const rr = direction === 'up' ? r : (N - 1 - r);
+        line.push({ v: prevBoard[rr][c], r: rr, c });
+      }
+      processLine(line, false, c);
+    }
+  }
+  return mergeTargets;
+};
+
+// 传入 [{r,c}]，只对这些格子做合并弹跳
+const animateMergeBounce = (mergeTargets) => {
+  return new Promise(resolve => {
+    if (!mergeTargets || mergeTargets.length === 0) return resolve();
+
+    const anims = [];
+    for (const { r, c } of mergeTargets) {
+      const key = `${r}-${c}`;
+      const av = animatedValues.current[key];
+      if (!av) continue;
+      anims.push(
+        Animated.sequence([
+          Animated.timing(av.scale, {
+            toValue: 1.12,     // 稍微放大
+            duration: 100,     // 0.1s
+            useNativeDriver: true,
+          }),
+          Animated.timing(av.scale, {
+            toValue: 1,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    }
+    Animated.parallel(anims).start(() => resolve());
+  });
+};
+
   const startNewGame = () => {
     const newBoard = initializeBoard();
     const gameData = {
@@ -269,13 +353,16 @@ export default function HomeScreen() {
     );
 
     Animated.parallel(slideAnims).start(async () => {
-      // Commit new board after sliding
+      // 计算本次合并的落点（UI-only）
+      const mergeTargets = computeMergeTargets(prev, direction);
+
+      // 提交合并后的棋盘（没有新砖）
       dispatch({ type: 'SET_BOARD', payload: result.board });
 
-      // Animate merges
-      await animateMerges();
+      // ✅ 在合并落点做 0.1s 放大回弹
+      await animateMergeBounce(mergeTargets);
 
-      // Add new tile and animate only the new tile
+      // 生成新砖并回弹新砖（只对新增格子）
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
@@ -337,39 +424,6 @@ export default function HomeScreen() {
     },
     onShouldBlockNativeResponder: () => true,
   }), [handleMove]); // 只依赖稳定的 handleMove
-
-  const animateMerges = () => {
-    return new Promise(resolve => {
-      // Animate merge effects
-      const animations = [];
-      
-      for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 4; col++) {
-          const key = `${row}-${col}`;
-          const anim = animatedValues.current[key];
-          
-          if (anim) {
-            animations.push(
-              Animated.sequence([
-                Animated.timing(anim.scale, {
-                  toValue: 1.1,
-                  duration: 100,
-                  useNativeDriver: true,
-                }),
-                Animated.timing(anim.scale, {
-                  toValue: 1,
-                  duration: 100,
-                  useNativeDriver: true,
-                }),
-              ])
-            );
-          }
-        }
-      }
-      
-      Animated.parallel(animations).start(() => resolve());
-    });
-  };
 
   const animateNewTiles = (prevBoard, nextBoard) => {
     // Find new tiles and animate them
