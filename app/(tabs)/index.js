@@ -27,16 +27,17 @@ import {
 const { width: screenWidth } = Dimensions.get('window');
 const BOARD_SIZE = Math.min(screenWidth - 40, 320);
 
-// Unified grid constants
-const GRID = 4;
-const PADDING = 10;
-const GAP = 10;
-const INNER = BOARD_SIZE - PADDING * 2;
-const TILE_SIZE = (INNER - GAP * (GRID + 1)) / GRID;
+// Grid constants adapted from original 2048
+const GRID_SIZE = 4;
+const GRID_SPACING = 10;
+const GRID_ROW_CELLS = 4;
+const TILE_SIZE = Math.floor((BOARD_SIZE - GRID_SPACING * (GRID_ROW_CELLS + 1)) / GRID_ROW_CELLS);
+const TILE_BORDER_RADIUS = 3;
 
-// Coordinate helpers
-const toX = (c) => PADDING + GAP + c * (TILE_SIZE + GAP);
-const toY = (r) => PADDING + GAP + r * (TILE_SIZE + GAP);
+// Position calculation helpers
+const cellPosition = (x) => {
+  return GRID_SPACING + x * (TILE_SIZE + GRID_SPACING);
+};
 
 /**
  * Home Screen - Main Game Board
@@ -535,26 +536,37 @@ export default function HomeScreen() {
   };
 
   const getTileStyle = (value) => {
-    const colors = {
-      2: { bg: '#eee4da', text: '#776e65' },
-      4: { bg: '#ede0c8', text: '#776e65' },
-      8: { bg: '#f2b179', text: '#f9f6f2' },
-      16: { bg: '#f59563', text: '#f9f6f2' },
-      32: { bg: '#f67c5f', text: '#f9f6f2' },
-      64: { bg: '#f65e3b', text: '#f9f6f2' },
-      128: { bg: '#edcf72', text: '#f9f6f2' },
-      256: { bg: '#edcc61', text: '#f9f6f2' },
-      512: { bg: '#edc850', text: '#f9f6f2' },
-      1024: { bg: '#edc53f', text: '#f9f6f2' },
-      2048: { bg: '#edc22e', text: '#f9f6f2' },
+    // Original 2048 color scheme
+    const tileColors = {
+      2: { backgroundColor: '#eee4da', color: '#776e65' },
+      4: { backgroundColor: '#ede0c8', color: '#776e65' },
+      8: { backgroundColor: '#f2b179', color: '#f9f6f2' },
+      16: { backgroundColor: '#f59563', color: '#f9f6f2' },
+      32: { backgroundColor: '#f67c5f', color: '#f9f6f2' },
+      64: { backgroundColor: '#f65e3b', color: '#f9f6f2' },
+      128: { backgroundColor: '#edcf72', color: '#f9f6f2', fontSize: 45 },
+      256: { backgroundColor: '#edcc61', color: '#f9f6f2', fontSize: 45 },
+      512: { backgroundColor: '#edc850', color: '#f9f6f2', fontSize: 45 },
+      1024: { backgroundColor: '#edc53f', color: '#f9f6f2', fontSize: 35 },
+      2048: { backgroundColor: '#edc22e', color: '#f9f6f2', fontSize: 35 },
+      4096: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
+      8192: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
     };
 
-    const color = colors[value] || { bg: '#3c3a32', text: '#f9f6f2' };
-    
-    return {
-      backgroundColor: color.bg,
-      color: color.text,
+    const tileClass = tileColors[value] || { 
+      backgroundColor: '#3c3a32', 
+      color: '#f9f6f2', 
+      fontSize: 30 
     };
+    
+    return tileClass;
+  };
+
+  const getTileFontSize = (value) => {
+    if (value < 100) return 55;
+    if (value < 1000) return 45;
+    if (value < 10000) return 35;
+    return 30;
   };
 
   if (state.isLoading) {
@@ -775,31 +787,27 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   board: {
-    backgroundColor: '#bbada0',
-    borderRadius: 12,
-    padding: PADDING,
+    backgroundColor: '#bbada0', // Original game board color
+    borderRadius: 6,
+    padding: GRID_SPACING,
     position: 'relative',
     marginBottom: 20,
   },
   gridCell: {
-    backgroundColor: '#cdc1b4',
-    borderRadius: 6,
+    backgroundColor: '#cdc1b4', // Original empty cell color
+    borderRadius: TILE_BORDER_RADIUS,
     position: 'absolute',
   },
   tile: {
-    borderRadius: 6,
+    borderRadius: TILE_BORDER_RADIUS,
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   tileText: {
-    fontWeight: 'bold',
+    fontWeight: '700', // Bold font weight like original
     textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
   },
   controls: {
     alignItems: 'center',
