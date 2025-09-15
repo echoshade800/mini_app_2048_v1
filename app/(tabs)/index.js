@@ -257,7 +257,6 @@ export default function HomeScreen() {
 
     const prev = state.board;
     const result = move(state.board, direction);
-    let boardWithNewTile; // Declare variable in function scope
     
     if (!result.isValidMove) {
       // Invalid move - shake animation and haptic
@@ -322,11 +321,7 @@ export default function HomeScreen() {
       })
     );
 
-    // Start sliding animation with early board commit at 80%
-    const slideAnimation = Animated.parallel(slideAnims);
-    
-    // Commit board at 80% completion (64ms into 80ms animation)
-    setTimeout(async () => {
+    Animated.parallel(slideAnims).start(async () => {
       // Commit new board after sliding
       dispatch({ type: 'SET_BOARD', payload: result.board });
       
@@ -348,13 +343,10 @@ export default function HomeScreen() {
       setMergingPositions(new Set());
 
       // Add new tile and animate only the new tile
-      boardWithNewTile = addRandomTile(result.board); // Assign to existing variable
+      const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
 
-    }, 64); // 80% of 80ms = 64ms
-
-    slideAnimation.start(() => {
       // Clear ghost tiles
       ghostTilesRef.current = [];
       setIsSliding(false);
@@ -368,7 +360,7 @@ export default function HomeScreen() {
         showWinModal();
       } else if (checkGameOver(boardWithNewTile)) {
         dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-        endGame(boardWithNewTile, newScore, false);
+        await endGame(boardWithNewTile, newScore, false);
         showLoseModal();
       }
 
