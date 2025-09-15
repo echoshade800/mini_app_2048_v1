@@ -154,7 +154,9 @@ export default function HomeScreen() {
     
     // Initialize board if empty
     if (state.board.every(row => row.every(cell => cell === null))) {
-      startNewGame();
+      setTimeout(() => {
+        startNewGame();
+      }, 0);
     }
   }, [state.isLoading, state.showOnboarding]);
 
