@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { useColorScheme } from 'react-native';
 import StorageUtils from '../utils/StorageUtils';
 
 const GameContext = createContext();
@@ -111,19 +110,10 @@ function gameReducer(state, action) {
 
 export function GameProvider({ children }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
-  const systemColorScheme = useColorScheme();
   
   useEffect(() => {
     initializeApp();
   }, []);
-  
-  // Get effective theme (resolve 'system' to actual theme)
-  const getEffectiveTheme = () => {
-    if (state.theme === 'system') {
-      return systemColorScheme || 'light';
-    }
-    return state.theme;
-  };
   
   const initializeApp = async () => {
     try {
@@ -147,10 +137,14 @@ export function GameProvider({ children }) {
         gameHistory: gameData?.gameHistory || [],
       };
       
-      dispatch({ type: 'INITIALIZE_APP', payload });
+      setTimeout(() => {
+        dispatch({ type: 'INITIALIZE_APP', payload });
+      }, 0);
     } catch (error) {
       console.error('Failed to initialize app:', error);
-      dispatch({ type: 'INITIALIZE_APP', payload: {} });
+      setTimeout(() => {
+        dispatch({ type: 'INITIALIZE_APP', payload: {} });
+      }, 0);
     }
   };
   
@@ -166,7 +160,6 @@ export function GameProvider({ children }) {
     state,
     dispatch,
     saveGameData,
-    effectiveTheme: getEffectiveTheme(),
   };
   
   return (

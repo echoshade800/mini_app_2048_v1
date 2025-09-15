@@ -15,7 +15,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useGame } from '../../contexts/GameContext';
-import { getTheme, createThemedStyles } from '../../utils/ThemeUtils';
 import {
   initializeBoard,
   move,
@@ -27,7 +26,17 @@ import {
 
 const { width: screenWidth } = Dimensions.get('window');
 const BOARD_SIZE = Math.min(screenWidth - 40, 320);
-const TILE_SIZE = (BOARD_SIZE - 20) / 4 - 10;
+
+// Unified sizing and positioning constants
+const GRID = 4;
+const PADDING = 10;  // Align with styles.board padding
+const GAP = 10;      // Gap between cells
+const INNER = BOARD_SIZE - PADDING * 2;
+const TILE_SIZE = (INNER - GAP * (GRID + 1)) / GRID;
+
+// Unified coordinate calculation
+const toX = (col) => PADDING + GAP + col * (TILE_SIZE + GAP);
+const toY = (row) => PADDING + GAP + row * (TILE_SIZE + GAP);
 
 /**
  * Home Screen - Main Game Board
@@ -36,10 +45,10 @@ const TILE_SIZE = (BOARD_SIZE - 20) / 4 - 10;
  */
 export default function HomeScreen() {
   const { state, dispatch, saveGameData } = useGame();
-  const theme = getTheme(state.effectiveTheme);
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
   const animatedValues = useRef({});
+  const posAnimsRef = useRef({});
 
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
   const isAnimatingRef = useRef(state.isAnimating);
@@ -47,6 +56,78 @@ export default function HomeScreen() {
     isAnimatingRef.current = state.isAnimating;
   }, [state.isAnimating]);
 
+  // Helper functions for coordinate conversion
+  // Compute transitions for UI animation (does not change game logic)
+  const computeTransitionsUIOnly = (beforeBoard, afterBoard, direction) => {
+    const transitions = [];
+    
+    // Create a map of values in the after board for matching
+    const afterPositions = {};
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        if (afterBoard[r][c] !== null) {
+          const key = `${r}-${c}`;
+          afterPositions[key] = afterBoard[r][c];
+        }
+      }
+    }
+    
+    // For each non-null tile in before board, find where it should move
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        if (beforeBoard[r][c] !== null) {
+          const value = beforeBoard[r][c];
+          
+          // Find target position based on direction and game logic
+          let targetR = r, targetC = c;
+          
+          if (direction === 'left') {
+            // Find leftmost available position
+            for (let newC = 0; newC < 4; newC++) {
+              if (afterBoard[r][newC] === value) {
+                targetC = newC;
+                break;
+              }
+            }
+          } else if (direction === 'right') {
+            // Find rightmost available position
+            for (let newC = 3; newC >= 0; newC--) {
+              if (afterBoard[r][newC] === value) {
+                targetC = newC;
+                break;
+              }
+            }
+          } else if (direction === 'up') {
+            // Find topmost available position
+            for (let newR = 0; newR < 4; newR++) {
+              if (afterBoard[newR][c] === value) {
+                targetR = newR;
+                break;
+              }
+            }
+          } else if (direction === 'down') {
+            // Find bottommost available position
+            for (let newR = 3; newR >= 0; newR--) {
+              if (afterBoard[newR][c] === value) {
+                targetR = newR;
+                break;
+              }
+            }
+          }
+          
+          // Only add transition if position actually changed
+          if (targetR !== r || targetC !== c) {
+            transitions.push({
+              from: { r, c },
+              to: { r: targetR, c: targetC }
+            });
+          }
+        }
+      }
+    }
+    
+    return transitions;
+  };
   // Initialize animations for each tile position
   useEffect(() => {
     // Initialize board shake animation
@@ -67,6 +148,30 @@ export default function HomeScreen() {
     }
   }, []);
 
+  // Manage Animated.ValueXY instances for tile positions
+  useEffect(() => {
+    const newPosAnims = {};
+    
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) {
+        if (state.board[row][col] !== null) {
+          const key = `${row}-${col}`;
+          
+          // Reuse existing animator or create new one
+          if (posAnimsRef.current[key]) {
+            newPosAnims[key] = posAnimsRef.current[key];
+            // Update position to current cell
+            newPosAnims[key].setValue({ x: toX(col), y: toY(row) });
+          } else {
+            newPosAnims[key] = new Animated.ValueXY({ x: toX(col), y: toY(row) });
+          }
+        }
+      }
+    }
+    
+    posAnimsRef.current = newPosAnims;
+  }, [state.board]);
+
   // Initialize game on first load
   useEffect(() => {
     if (state.isLoading) return;
@@ -79,7 +184,9 @@ export default function HomeScreen() {
     
     // Initialize board if empty
     if (state.board.every(row => row.every(cell => cell === null))) {
-      startNewGame();
+      setTimeout(() => {
+        startNewGame();
+      }, 0);
     }
   }, [state.isLoading, state.showOnboarding]);
 
@@ -120,13 +227,14 @@ export default function HomeScreen() {
     setMoveCount(0);
 
     // Animate new tiles
-    animateNewTiles(newBoard);
+    animateNewTiles(Array(4).fill(null).map(() => Array(4).fill(null)), newBoard);
   };
 
   const handleMove = useCallback(async (direction) => {
-    if (state.gameState !== 'playing' || state.isAnimating) return;
+    if (state.gameState !== 'playing' || isAnimatingRef.current) return;
 
-    const result = move(state.board, direction);
+    const beforeBoard = state.board;
+    const result = move(beforeBoard, direction);
     
     if (!result.isValidMove) {
       // Invalid move - shake animation and haptic
@@ -158,33 +266,21 @@ export default function HomeScreen() {
 
     dispatch({ type: 'SET_ANIMATING', payload: true });
 
-    // Update score
-    const newScore = state.score + result.score;
-    dispatch({ type: 'UPDATE_SCORE', payload: newScore });
+    // 1) Compute transitions for UI animation
+    const transitions = computeTransitionsUIOnly(beforeBoard, result.board, direction);
 
-    // Animate merges
-    await animateMerges();
-
-    // Update board
-    dispatch({ type: 'SET_BOARD', payload: result.board });
-
-    // Add new tile
-    const boardWithNewTile = addRandomTile(result.board);
-    dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
-
-    // Animate new tile
-    animateNewTiles(boardWithNewTile);
-
-    setMoveCount(prev => prev + 1);
-
-    // Check win condition
-    if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
-      dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
-      showWinModal();
-    } else if (checkGameOver(boardWithNewTile)) {
-      dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-      await endGame(boardWithNewTile, newScore, false);
-      showLoseModal();
+    // 2) Animate tiles to their target positions
+    const anims = [];
+    for (const t of transitions) {
+      const oldKey = `${t.from.r}-${t.from.c}`;
+      const pos = posAnimsRef.current[oldKey];
+      if (pos) {
+        anims.push(Animated.timing(pos, {
+          toValue: { x: toX(t.to.c), y: toY(t.to.r) },
+          duration: 120,
+          useNativeDriver: true,
+        }));
+      }
     }
 
     // Haptic feedback for valid move
@@ -192,7 +288,38 @@ export default function HomeScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    dispatch({ type: 'SET_ANIMATING', payload: false });
+    Animated.parallel(anims).start(async () => {
+      // 3) Animation finished - commit new board state
+      dispatch({ type: 'SET_BOARD', payload: result.board });
+
+      // 4) Update score
+      const newScore = state.score + result.score;
+      dispatch({ type: 'UPDATE_SCORE', payload: newScore });
+
+      // 5) Animate merges (bounce effect)
+      await animateMerges();
+
+      // 6) Add new tile
+      const boardWithNewTile = addRandomTile(result.board);
+      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
+      
+      // 7) Animate only the truly new tile
+      animateNewTiles(result.board, boardWithNewTile);
+
+      setMoveCount(prev => prev + 1);
+
+      // 8) Check win/lose conditions
+      if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
+        dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
+        showWinModal();
+      } else if (checkGameOver(boardWithNewTile)) {
+        dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
+        await endGame(boardWithNewTile, newScore, false);
+        showLoseModal();
+      }
+
+      dispatch({ type: 'SET_ANIMATING', payload: false });
+    });
   }, [state.gameState, state.isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
   // 用 useMemo 重建 PanResponder，避免旧值问题
@@ -262,12 +389,14 @@ export default function HomeScreen() {
     });
   };
 
-  const animateNewTiles = (board) => {
+  const animateNewTiles = (prevBoard, nextBoard) => {
     // Find new tiles and animate them
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 4; col++) {
-        if (board[row][col] && !state.board[row][col]) {
-          const key = `${row}-${col}`;
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const wasEmpty = !prevBoard[r][c];
+        const nowHas   = !!nextBoard[r][c];
+        if (wasEmpty && nowHas) {
+          const key = `${r}-${c}`;
           const anim = animatedValues.current[key];
           
           if (anim) {
@@ -365,8 +494,21 @@ export default function HomeScreen() {
   };
 
   const getTileStyle = (value) => {
-    const tileKey = `tile${value}`;
-    const color = theme[tileKey] || theme.tileDefault;
+    const colors = {
+      2: { bg: '#eee4da', text: '#776e65' },
+      4: { bg: '#ede0c8', text: '#776e65' },
+      8: { bg: '#f2b179', text: '#f9f6f2' },
+      16: { bg: '#f59563', text: '#f9f6f2' },
+      32: { bg: '#f67c5f', text: '#f9f6f2' },
+      64: { bg: '#f65e3b', text: '#f9f6f2' },
+      128: { bg: '#edcf72', text: '#f9f6f2' },
+      256: { bg: '#edcc61', text: '#f9f6f2' },
+      512: { bg: '#edc850', text: '#f9f6f2' },
+      1024: { bg: '#edc53f', text: '#f9f6f2' },
+      2048: { bg: '#edc22e', text: '#f9f6f2' },
+    };
+
+    const color = colors[value] || { bg: '#3c3a32', text: '#f9f6f2' };
     
     return {
       backgroundColor: color.bg,
@@ -376,31 +518,29 @@ export default function HomeScreen() {
 
   if (state.isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading...</Text>
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const themedStyles = createThemedStyles(styles, theme);
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.gameBackground }]}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.scoreContainer}>
-          <View style={[styles.scoreBox, { backgroundColor: theme.scoreBackground }]}>
-            <Text style={[styles.scoreLabel, { color: theme.scoreLabel }]}>SCORE</Text>
-            <Text style={[styles.scoreValue, { color: theme.scoreValue }]}>{state.score}</Text>
+          <View style={styles.scoreBox}>
+            <Text style={styles.scoreLabel}>SCORE</Text>
+            <Text style={styles.scoreValue}>{state.score}</Text>
           </View>
-          <View style={[styles.scoreBox, { backgroundColor: theme.scoreBackground }]}>
-            <Text style={[styles.scoreLabel, { color: theme.scoreLabel }]}>BEST</Text>
-            <Text style={[styles.scoreValue, { color: theme.scoreValue }]}>{state.bestScore}</Text>
+          <View style={styles.scoreBox}>
+            <Text style={styles.scoreLabel}>BEST</Text>
+            <Text style={styles.scoreValue}>{state.bestScore}</Text>
           </View>
         </View>
-        <TouchableOpacity style={[styles.newGameButton, { backgroundColor: theme.buttonSecondary }]} onPress={startNewGame}>
+        <TouchableOpacity style={styles.newGameButton} onPress={startNewGame}>
           <Ionicons name="refresh" size={16} color="#ffffff" />
           <Text style={styles.newGameText}>New Game</Text>
         </TouchableOpacity>
@@ -409,11 +549,11 @@ export default function HomeScreen() {
       {/* Game Board */}
       <View style={styles.gameContainer}>
         <View style={styles.instructions}>
-          <Text style={[styles.instructionsText, { color: theme.textSecondary }]}>
+          <Text style={styles.instructionsText}>
             Join the tiles, get to 2048!
           </Text>
           <TouchableOpacity onPress={() => router.push('/history')}>
-            <Text style={[styles.historyLink, { color: theme.primary }]}>View History</Text>
+            <Text style={styles.historyLink}>View History</Text>
           </TouchableOpacity>
         </View>
 
@@ -429,7 +569,6 @@ export default function HomeScreen() {
           <Animated.View
             style={[
               styles.board,
-              { backgroundColor: theme.boardBackground },
               { 
                 width: BOARD_SIZE, 
                 height: BOARD_SIZE,
@@ -438,10 +577,17 @@ export default function HomeScreen() {
             ]}
           >
             {/* Background grid */}
-            {Array.from({ length: 16 }).map((_, index) => {
-              const left = (index % 4) * (TILE_SIZE + 10) + 10;
-              const top = Math.floor(index / 4) * (TILE_SIZE + 10) + 10;
-              return <View key={index} style={[styles.gridCell, { backgroundColor: theme.gridCell, width: TILE_SIZE, height: TILE_SIZE, left, top }]} />;
+            {Array.from({ length: 16 }).map((_, i) => {
+              const row = Math.floor(i / GRID), col = i % GRID;
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.gridCell,
+                    { width: TILE_SIZE, height: TILE_SIZE, left: toX(col), top: toY(row) }
+                  ]}
+                />
+              );
             })}
 
             {/* Game tiles */}
@@ -451,6 +597,9 @@ export default function HomeScreen() {
 
                 const key = `${rowIndex}-${colIndex}`;
                 const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
+                const pos = posAnimsRef.current[key];
+
+                if (!pos) return null; // Skip if position animator not ready
 
                 return (
                   <Animated.View
@@ -461,9 +610,10 @@ export default function HomeScreen() {
                       {
                         width: TILE_SIZE,
                         height: TILE_SIZE,
-                        left: colIndex * (TILE_SIZE + 10) + 10,
-                        top: rowIndex * (TILE_SIZE + 10) + 10,
-                        transform: [{ scale: anim.scale }],
+                        ...pos.getLayout(),
+                        transform: [
+                          { scale: anim.scale }
+                        ],
                         opacity: anim.opacity,
                       },
                     ]}
@@ -480,7 +630,7 @@ export default function HomeScreen() {
 
         {/* Game instructions for mobile */}
         <View style={styles.controls}>
-          <Text style={[styles.controlsText, { color: theme.buttonSecondary }]}>
+          <Text style={styles.controlsText}>
             {Platform.OS === 'web' ? 'Use arrow keys or swipe to move' : 'Swipe in any direction to move tiles'}
           </Text>
         </View>
@@ -492,6 +642,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#faf8ef',
     paddingHorizontal: 20,
   },
   loadingContainer: {
@@ -501,6 +652,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 18,
+    color: '#776e65',
   },
   header: {
     flexDirection: 'row',
@@ -513,6 +665,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   scoreBox: {
+    backgroundColor: '#bbada0',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -522,13 +675,16 @@ const styles = StyleSheet.create({
   scoreLabel: {
     fontSize: 12,
     fontWeight: 'bold',
+    color: '#eee4da',
     marginBottom: 2,
   },
   scoreValue: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: '#ffffff',
   },
   newGameButton: {
+    backgroundColor: '#8f7a66',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
@@ -551,19 +707,23 @@ const styles = StyleSheet.create({
   },
   instructionsText: {
     fontSize: 16,
+    color: '#776e65',
     marginBottom: 8,
   },
   historyLink: {
     fontSize: 14,
+    color: '#667eea',
     textDecorationLine: 'underline',
   },
   board: {
+    backgroundColor: '#bbada0',
     borderRadius: 12,
     padding: 10,
     position: 'relative',
     marginBottom: 20,
   },
   gridCell: {
+    backgroundColor: '#cdc1b4',
     borderRadius: 6,
     position: 'absolute',
   },
@@ -588,6 +748,7 @@ const styles = StyleSheet.create({
   },
   controlsText: {
     fontSize: 14,
+    color: '#8f7a66',
     textAlign: 'center',
   },
 });
