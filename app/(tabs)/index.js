@@ -231,13 +231,6 @@ export default function HomeScreen() {
       return;
     }
 
-    dispatch({ type: 'SET_ANIMATING', payload: true });
-    setIsSliding(true);
-
-    // Update score
-    const newScore = state.score + result.score;
-    dispatch({ type: 'UPDATE_SCORE', payload: newScore });
-
     // Generate ghost tiles for sliding animation
     const transitions = computeTransitionsUIOnly(prev, result.board, direction)
       .filter(t => !(t.from.r === t.to.r && t.from.c === t.to.c));
@@ -249,6 +242,22 @@ export default function HomeScreen() {
       to: t.to,
       anim: new Animated.ValueXY({ x: toX(t.from.c), y: toY(t.from.r) }),
     }));
+
+    // Set sliding state and animation lock AFTER ghost tiles are prepared
+    setIsSliding(true);
+    
+    // Force a render cycle to ensure ghost tiles are ready before starting animation
+    await new Promise(resolve => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(resolve);
+      });
+    });
+    
+    dispatch({ type: 'SET_ANIMATING', payload: true });
+
+    // Update score
+    const newScore = state.score + result.score;
+    dispatch({ type: 'UPDATE_SCORE', payload: newScore });
 
     // Start sliding animation
     const slideAnims = ghostTilesRef.current.map(g =>
@@ -580,6 +589,7 @@ export default function HomeScreen() {
                         left: toX(colIndex),
                         top: toY(rowIndex),
                         opacity: isHidden ? 0 : anim.opacity,
+                        zIndex: isHidden ? -1 : 1,
                         transform: [{ scale: anim.scale }],
                       },
                     ]}
@@ -593,7 +603,7 @@ export default function HomeScreen() {
             )}
 
             {/* Ghost tiles overlay for sliding animation */}
-            <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, left: 0, top: 0, zIndex: 20 }}>
+            <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, left: 0, top: 0, zIndex: 10 }}>
               {isSliding && ghostTilesRef.current.map(g => (
                 <Animated.View
                   key={`ghost-${g.key}`}
@@ -603,6 +613,7 @@ export default function HomeScreen() {
                     {
                       width: TILE_SIZE,
                       height: TILE_SIZE,
+                      zIndex: 5,
                       transform: [{ translateX: g.anim.x }, { translateY: g.anim.y }],
                     },
                   ]}
