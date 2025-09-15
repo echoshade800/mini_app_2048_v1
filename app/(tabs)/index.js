@@ -52,11 +52,6 @@ export default function HomeScreen() {
         }
       }
     }
-    
-    // Initialize board shake animation
-    if (!animatedValues.current.board) {
-      animatedValues.current.board = new Animated.Value(0);
-    }
   }, []);
 
   // Initialize game on first load
@@ -95,24 +90,21 @@ export default function HomeScreen() {
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [state.isAnimating]);
+    document.addEventListener('keydown', handleKeyPress);
+    return () => document.removeEventListener('keydown', handleKeyPress);
+  }, [state.isAnimating, state.board]);
 
   // Pan responder for gestures
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !state.isAnimating,
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        if (state.isAnimating) return false;
-        return Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10;
-      },
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
 
       onPanResponderRelease: (event, gestureState) => {
         if (state.isAnimating) return;
 
         const { dx, dy } = gestureState;
-        const threshold = 20; // 20px minimum swipe distance
+        const threshold = 15;
 
         if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
 
@@ -125,9 +117,6 @@ export default function HomeScreen() {
 
         handleMove(direction);
       },
-
-      onPanResponderTerminationRequest: () => false,
-      onShouldBlockNativeResponder: () => false,
     })
   ).current;
 
@@ -148,42 +137,34 @@ export default function HomeScreen() {
   };
 
   const handleMove = async (direction) => {
-    if (state.gameState !== 'playing' || state.isAnimating) {
-      return;
-    }
+    if (state.gameState !== 'playing' || state.isAnimating) return;
 
     const result = move(state.board, direction);
     
     if (!result.isValidMove) {
       // Invalid move - shake animation and haptic
       if (state.hapticsOn && Platform.OS !== 'web') {
-        try {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        } catch (error) {
-          console.log('Haptics not available');
-        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
       
       // Shake animation
-      if (animatedValues.current.board) {
-        Animated.sequence([
-          Animated.timing(animatedValues.current.board, { 
-            toValue: 5, 
-            duration: 50, 
-            useNativeDriver: true 
-          }),
-          Animated.timing(animatedValues.current.board, { 
-            toValue: -5, 
-            duration: 50, 
-            useNativeDriver: true 
-          }),
-          Animated.timing(animatedValues.current.board, { 
-            toValue: 0, 
-            duration: 50, 
-            useNativeDriver: true 
-          }),
-        ]).start();
-      }
+      Animated.sequence([
+        Animated.timing(animatedValues.current.board, { 
+          toValue: 10, 
+          duration: 50, 
+          useNativeDriver: true 
+        }),
+        Animated.timing(animatedValues.current.board, { 
+          toValue: -10, 
+          duration: 50, 
+          useNativeDriver: true 
+        }),
+        Animated.timing(animatedValues.current.board, { 
+          toValue: 0, 
+          duration: 50, 
+          useNativeDriver: true 
+        }),
+      ]).start();
       
       return;
     }
@@ -221,17 +202,10 @@ export default function HomeScreen() {
 
     // Haptic feedback for valid move
     if (state.hapticsOn && Platform.OS !== 'web') {
-      try {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      } catch (error) {
-        console.log('Haptics not available');
-      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    // Add small delay before allowing next move
-    setTimeout(() => {
-      dispatch({ type: 'SET_ANIMATING', payload: false });
-    }, 100);
+    dispatch({ type: 'SET_ANIMATING', payload: false });
   };
 
   const animateMerges = () => {
@@ -435,7 +409,6 @@ export default function HomeScreen() {
 
         <Animated.View
           style={[styles.board, { width: BOARD_SIZE, height: BOARD_SIZE }]}
-          transform={[{ translateX: animatedValues.current.board || new Animated.Value(0) }]}
           {...panResponder.panHandlers}
         >
           {/* Background grid */}
