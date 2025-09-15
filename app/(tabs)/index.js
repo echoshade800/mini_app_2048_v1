@@ -148,6 +148,30 @@ export default function HomeScreen() {
     }
   }, []);
 
+  // Manage Animated.ValueXY instances for tile positions
+  useEffect(() => {
+    const newPosAnims = {};
+    
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) {
+        if (state.board[row][col] !== null) {
+          const key = `${row}-${col}`;
+          
+          // Reuse existing animator or create new one
+          if (posAnimsRef.current[key]) {
+            newPosAnims[key] = posAnimsRef.current[key];
+            // Update position to current cell
+            newPosAnims[key].setValue({ x: toX(col), y: toY(row) });
+          } else {
+            newPosAnims[key] = new Animated.ValueXY({ x: toX(col), y: toY(row) });
+          }
+        }
+      }
+    }
+    
+    posAnimsRef.current = newPosAnims;
+  }, [state.board]);
+
   // Initialize game on first load
   useEffect(() => {
     if (state.isLoading) return;
@@ -568,23 +592,10 @@ export default function HomeScreen() {
                 if (!value) return null;
 
                 const key = `${rowIndex}-${colIndex}`;
-                
-                // Ensure position animator exists
-                if (!posAnimsRef.current[key]) {
-                  posAnimsRef.current[key] = new Animated.ValueXY({ 
-                    x: toX(colIndex), 
-                    y: toY(rowIndex) 
-                  });
-                } else {
-                  // Keep animator in sync if layout changed
-                  posAnimsRef.current[key].setValue({ 
-                    x: toX(colIndex), 
-                    y: toY(rowIndex) 
-                  });
-                }
-                
                 const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
                 const pos = posAnimsRef.current[key];
+
+                if (!pos) return null; // Skip if position animator not ready
 
                 return (
                   <Animated.View
@@ -595,8 +606,7 @@ export default function HomeScreen() {
                       {
                         width: TILE_SIZE,
                         height: TILE_SIZE,
-                        left: toX(colIndex),
-                        top: toY(rowIndex),
+                        ...pos.getLayout(),
                         transform: [
                           { scale: anim.scale }
                         ],
