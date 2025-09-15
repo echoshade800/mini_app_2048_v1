@@ -95,21 +95,23 @@ export default function HomeScreen() {
       }
     };
 
-    document.addEventListener('keydown', handleKeyPress);
-    return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [state.isAnimating, state.board]);
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [state.isAnimating]);
 
   // Pan responder for gestures
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+      },
 
       onPanResponderRelease: (event, gestureState) => {
         if (state.isAnimating) return;
 
         const { dx, dy } = gestureState;
-        const threshold = 15;
+        const threshold = 20;
 
         if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
 
