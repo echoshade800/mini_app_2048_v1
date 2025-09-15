@@ -38,12 +38,24 @@ export default function HomeScreen() {
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
   const animatedValues = useRef({});
+  const posAnimsRef = useRef({});
 
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
   const isAnimatingRef = useRef(state.isAnimating);
   useEffect(() => {
     isAnimatingRef.current = state.isAnimating;
   }, [state.isAnimating]);
+
+  // 确保每个瓦片都有位置动画对象
+  const ensurePositionAnim = (id, initialRow, initialCol) => {
+    if (!posAnimsRef.current[id]) {
+      const cell = TILE_SIZE + 10;
+      const initialX = initialCol * cell + 10;
+      const initialY = initialRow * cell + 10;
+      posAnimsRef.current[id] = new Animated.ValueXY({ x: initialX, y: initialY });
+    }
+    return posAnimsRef.current[id];
+  };
 
   // Initialize animations for each tile position
   useEffect(() => {
@@ -76,7 +88,7 @@ export default function HomeScreen() {
     }
     
     // Initialize board if empty
-    if (state.board.every(row => row.every(cell => cell === null))) {
+    if (state.board.every(row => row.every(tile => tile === null))) {
       startNewGame();
     }
   }, [state.isLoading, state.showOnboarding]);
@@ -160,8 +172,30 @@ export default function HomeScreen() {
     const newScore = state.score + result.score;
     dispatch({ type: 'UPDATE_SCORE', payload: newScore });
 
-    // Animate merges
-    await animateMerges();
+    // 执行位移动画
+    const cell = TILE_SIZE + 10;
+    const moveAnimations = result.transitions.map(transition => {
+      const posAnim = posAnimsRef.current[transition.id];
+      if (posAnim) {
+        const toX = transition.to.c * cell + 10;
+        const toY = transition.to.r * cell + 10;
+        return Animated.timing(posAnim, {
+          toValue: { x: toX, y: toY },
+          duration: 120,
+          useNativeDriver: true,
+        });
+      }
+      return null;
+    }).filter(Boolean);
+
+    // 执行所有位移动画
+    await new Promise(resolve => {
+      if (moveAnimations.length > 0) {
+        Animated.parallel(moveAnimations).start(resolve);
+      } else {
+        resolve();
+      }
+    });
 
     // Update board
     dispatch({ type: 'SET_BOARD', payload: result.board });
@@ -172,6 +206,9 @@ export default function HomeScreen() {
 
     // Animate new tile
     animateNewTiles(boardWithNewTile);
+
+    // 执行合并弹跳动画
+    await animateMerges();
 
     setMoveCount(prev => prev + 1);
 
@@ -264,28 +301,35 @@ export default function HomeScreen() {
     // Find new tiles and animate them
     for (let row = 0; row < 4; row++) {
       for (let col = 0; col < 4; col++) {
-        if (board[row][col] && !state.board[row][col]) {
-          const key = `${row}-${col}`;
-          const anim = animatedValues.current[key];
+        const newTile = board[row][col];
+        const oldTile = state.board[row][col];
+        
+        if (newTile && (!oldTile || newTile.id !== oldTile.id)) {
+          // 这是一个新瓦片，需要动画
+          ensurePositionAnim(newTile.id, row, col);
           
-          if (anim) {
-            anim.scale.setValue(0);
-            anim.opacity.setValue(0);
-            
-            Animated.parallel([
-              Animated.spring(anim.scale, {
-                toValue: 1,
-                tension: 200,
-                friction: 10,
-                useNativeDriver: true,
-              }),
-              Animated.timing(anim.opacity, {
-                toValue: 1,
-                duration: 200,
-                useNativeDriver: true,
-              }),
-            ]).start();
-          }
+          const anim = animatedValues.current[newTile.id] || {
+            scale: new Animated.Value(1),
+            opacity: new Animated.Value(1),
+          };
+          animatedValues.current[newTile.id] = anim;
+          
+          anim.scale.setValue(0);
+          anim.opacity.setValue(0);
+          
+          Animated.parallel([
+            Animated.spring(anim.scale, {
+              toValue: 1,
+              tension: 200,
+              friction: 10,
+              useNativeDriver: true,
+            }),
+            Animated.timing(anim.opacity, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start();
         }
       }
     }
@@ -362,7 +406,8 @@ export default function HomeScreen() {
     );
   };
 
-  const getTileStyle = (value) => {
+  const getTileStyle = (tile) => {
+    const value = tile.value;
     const colors = {
       2: { bg: '#eee4da', text: '#776e65' },
       4: { bg: '#ede0c8', text: '#776e65' },
@@ -455,29 +500,36 @@ export default function HomeScreen() {
             {/* Game tiles */}
             {state.board.map((row, rowIndex) =>
               row.map((value, colIndex) => {
-                if (!value) return null;
+                if (!tile) return null;
 
-                const key = `${rowIndex}-${colIndex}`;
-                const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
+                const tileId = tile.id;
+                const posAnim = ensurePositionAnim(tileId, rowIndex, colIndex);
+                const scaleAnim = animatedValues.current[tileId] || { 
+                  scale: new Animated.Value(1), 
+                  opacity: new Animated.Value(1) 
+                };
+                animatedValues.current[tileId] = scaleAnim;
 
                 return (
                   <Animated.View
-                    key={key}
+                    key={tileId}
                     style={[
                       styles.tile,
-                      getTileStyle(value),
+                      getTileStyle(tile),
                       {
                         width: TILE_SIZE,
                         height: TILE_SIZE,
-                        left: colIndex * (TILE_SIZE + 10) + 10,
-                        top: rowIndex * (TILE_SIZE + 10) + 10,
-                        transform: [{ scale: anim.scale }],
-                        opacity: anim.opacity,
+                        transform: [
+                          { translateX: posAnim.x },
+                          { translateY: posAnim.y },
+                          { scale: scaleAnim.scale }
+                        ],
+                        opacity: scaleAnim.opacity,
                       },
                     ]}
                   >
-                    <Text style={[styles.tileText, { fontSize: value > 512 ? 24 : 32 }]}>
-                      {value}
+                    <Text style={[styles.tileText, { fontSize: tile.value > 512 ? 24 : 32 }]}>
+                      {tile.value}
                     </Text>
                   </Animated.View>
                 );
@@ -587,7 +639,6 @@ const styles = StyleSheet.create({
   },
   tile: {
     borderRadius: 6,
-    position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -595,6 +646,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    position: 'absolute',
   },
   tileText: {
     fontWeight: 'bold',

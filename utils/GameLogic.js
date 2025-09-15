@@ -3,6 +3,11 @@
  * 包含所有游戏核心逻辑：移动、合并、胜负判断等
  */
 
+// 生成唯一ID
+function generateId() {
+  return 'tile_' + Math.random().toString(36).substr(2, 9);
+}
+
 // 创建空的4x4棋盘
 export function createEmptyBoard() {
   return Array(4).fill(null).map(() => Array(4).fill(null));
@@ -30,7 +35,10 @@ export function addRandomTile(board) {
   const value = Math.random() < 0.9 ? 2 : 4; // 90% 概率是2，10%概率是4
   
   const newBoard = board.map(row => [...row]);
-  newBoard[randomPos.row][randomPos.col] = value;
+  newBoard[randomPos.row][randomPos.col] = {
+    id: generateId(),
+    value: value
+  };
   return newBoard;
 }
 
@@ -43,28 +51,66 @@ export function initializeBoard() {
 }
 
 // 向左移动一行的核心逻辑
-function moveRowLeft(row) {
+function moveRowLeft(row, rowIndex) {
   // 1. 移除空值并紧缩到左侧
-  let filtered = row.filter(val => val !== null);
+  let filtered = row.filter(tile => tile !== null);
+  let transitions = [];
+  
+  // 记录压缩阶段的移动
+  let compactIndex = 0;
+  for (let i = 0; i < row.length; i++) {
+    if (row[i] !== null) {
+      if (compactIndex !== i) {
+        transitions.push({
+          id: row[i].id,
+          from: { r: rowIndex, c: i },
+          to: { r: rowIndex, c: compactIndex }
+        });
+      }
+      compactIndex++;
+    }
+  }
   
   // 2. 合并相邻相同的数字
   let score = 0;
   for (let i = 0; i < filtered.length - 1; i++) {
-    if (filtered[i] === filtered[i + 1]) {
-      filtered[i] *= 2;
-      score += filtered[i];
+    if (filtered[i].value === filtered[i + 1].value) {
+      // 创建新的合并瓦片
+      const newTile = {
+        id: generateId(),
+        value: filtered[i].value * 2
+      };
+      
+      score += newTile.value;
+      
+      // 记录合并动画：两个瓦片都移动到合并位置
+      const mergePos = { r: rowIndex, c: i };
+      transitions.push({
+        id: filtered[i].id,
+        from: { r: rowIndex, c: i },
+        to: mergePos,
+        mergedInto: newTile.id
+      });
+      transitions.push({
+        id: filtered[i + 1].id,
+        from: { r: rowIndex, c: i + 1 },
+        to: mergePos,
+        mergedInto: newTile.id
+      });
+      
+      filtered[i] = newTile;
       filtered[i + 1] = null;
       i++; // 跳过下一个，防止连锁合并
     }
   }
   
   // 3. 再次移除空值并填充到长度4
-  filtered = filtered.filter(val => val !== null);
+  filtered = filtered.filter(tile => tile !== null);
   while (filtered.length < 4) {
     filtered.push(null);
   }
   
-  return { row: filtered, score };
+  return { row: filtered, score, transitions };
 }
 
 // 矩阵转置
@@ -93,13 +139,15 @@ function boardsEqual(board1, board2) {
 export function move(board, direction) {
   let newBoard = board.map(row => [...row]);
   let totalScore = 0;
+  let allTransitions = [];
   
   switch (direction) {
     case 'left':
       for (let row = 0; row < 4; row++) {
-        const result = moveRowLeft(newBoard[row]);
+        const result = moveRowLeft(newBoard[row], row);
         newBoard[row] = result.row;
         totalScore += result.score;
+        allTransitions.push(...result.transitions);
       }
       break;
       
@@ -107,9 +155,16 @@ export function move(board, direction) {
       // 翻转每行 -> 向左移动 -> 再翻转回来
       newBoard = reverseRows(newBoard);
       for (let row = 0; row < 4; row++) {
-        const result = moveRowLeft(newBoard[row]);
+        const result = moveRowLeft(newBoard[row], row);
         newBoard[row] = result.row;
         totalScore += result.score;
+        // 翻转坐标
+        const flippedTransitions = result.transitions.map(t => ({
+          ...t,
+          from: { r: t.from.r, c: 3 - t.from.c },
+          to: { r: t.to.r, c: 3 - t.to.c }
+        }));
+        allTransitions.push(...flippedTransitions);
       }
       newBoard = reverseRows(newBoard);
       break;
@@ -118,9 +173,16 @@ export function move(board, direction) {
       // 转置 -> 向左移动 -> 转置回来
       newBoard = transpose(newBoard);
       for (let row = 0; row < 4; row++) {
-        const result = moveRowLeft(newBoard[row]);
+        const result = moveRowLeft(newBoard[row], row);
         newBoard[row] = result.row;
         totalScore += result.score;
+        // 转置坐标
+        const transposedTransitions = result.transitions.map(t => ({
+          ...t,
+          from: { r: t.from.c, c: t.from.r },
+          to: { r: t.to.c, c: t.to.r }
+        }));
+        allTransitions.push(...transposedTransitions);
       }
       newBoard = transpose(newBoard);
       break;
@@ -130,9 +192,16 @@ export function move(board, direction) {
       newBoard = transpose(newBoard);
       newBoard = reverseRows(newBoard);
       for (let row = 0; row < 4; row++) {
-        const result = moveRowLeft(newBoard[row]);
+        const result = moveRowLeft(newBoard[row], row);
         newBoard[row] = result.row;
         totalScore += result.score;
+        // 先翻转再转置坐标
+        const transformedTransitions = result.transitions.map(t => ({
+          ...t,
+          from: { r: 3 - t.from.c, c: t.from.r },
+          to: { r: 3 - t.to.c, c: t.to.r }
+        }));
+        allTransitions.push(...transformedTransitions);
       }
       newBoard = reverseRows(newBoard);
       newBoard = transpose(newBoard);
@@ -145,7 +214,8 @@ export function move(board, direction) {
   return {
     board: newBoard,
     score: totalScore,
-    isValidMove
+    isValidMove,
+    transitions: allTransitions
   };
 }
 
@@ -153,7 +223,7 @@ export function move(board, direction) {
 export function checkWin(board) {
   for (let row = 0; row < 4; row++) {
     for (let col = 0; col < 4; col++) {
-      if (board[row][col] === 2048) {
+      if (board[row][col] && board[row][col].value === 2048) {
         return true;
       }
     }
@@ -185,8 +255,8 @@ export function getHighestTile(board) {
   let highest = 0;
   for (let row = 0; row < 4; row++) {
     for (let col = 0; col < 4; col++) {
-      if (board[row][col] && board[row][col] > highest) {
-        highest = board[row][col];
+      if (board[row][col] && board[row][col].value > highest) {
+        highest = board[row][col].value;
       }
     }
   }
