@@ -257,6 +257,7 @@ export default function HomeScreen() {
 
     const prev = state.board;
     const result = move(state.board, direction);
+    let boardWithNewTile; // Declare variable in function scope
     
     if (!result.isValidMove) {
       // Invalid move - shake animation and haptic
@@ -347,7 +348,7 @@ export default function HomeScreen() {
       setMergingPositions(new Set());
 
       // Add new tile and animate only the new tile
-      const boardWithNewTile = addRandomTile(result.board);
+      boardWithNewTile = addRandomTile(result.board); // Assign to existing variable
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
 
