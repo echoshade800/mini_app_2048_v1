@@ -367,7 +367,7 @@ export default function HomeScreen() {
         showWinModal();
       } else if (checkGameOver(boardWithNewTile)) {
         dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-        await endGame(boardWithNewTile, newScore, false);
+        endGame(boardWithNewTile, newScore, false);
         showLoseModal();
       }
 
