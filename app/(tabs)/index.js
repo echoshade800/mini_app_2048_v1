@@ -301,8 +301,12 @@ export default function HomeScreen() {
     // Set sliding state and animation lock AFTER ghost tiles are prepared
     setIsSliding(true);
     
-    // Single RAF to ensure ghost tiles are ready
-    await new Promise(resolve => requestAnimationFrame(resolve));
+    // Force a render cycle to ensure ghost tiles are ready before starting animation
+    await new Promise(resolve => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(resolve);
+      });
+    });
     
     dispatch({ type: 'SET_ANIMATING', payload: true });
 
@@ -314,7 +318,7 @@ export default function HomeScreen() {
     const slideAnims = ghostTilesRef.current.map(g =>
       Animated.timing(g.anim, {
         toValue: { x: toX(g.to.c), y: toY(g.to.r) },
-        duration: 80,
+        duration: 120,
         useNativeDriver: true,
       })
     );
