@@ -137,7 +137,12 @@ export default function HomeScreen() {
       }
       
       targets.forEach((t, idx) => {
-        const destIndex = idx;
+        let destIndex = idx;
+        // For right and down movements, reverse the destination index
+        if ((isRow && direction === 'right') || (!isRow && direction === 'down')) {
+          destIndex = N - 1 - idx;
+        }
+        
         t.froms.forEach(src => {
           moves.push({
             from: { r: src.r, c: src.c },
