@@ -340,34 +340,48 @@ export default function HomeScreen() {
 
   const animateMerges = () => {
     return new Promise(resolve => {
-      // Animate merge effects
-      const animations = [];
+      // Only animate tiles that were created by merging
+      const mergeAnimations = [];
       
-      for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 4; col++) {
-          const key = `${row}-${col}`;
-          const anim = animatedValues.current[key];
-          
-          if (anim) {
-            animations.push(
-              Animated.sequence([
-                Animated.timing(anim.scale, {
-                  toValue: 1.1,
-                  duration: 100,
-                  useNativeDriver: true,
-                }),
-                Animated.timing(anim.scale, {
-                  toValue: 1,
-                  duration: 100,
-                  useNativeDriver: true,
-                }),
-              ])
-            );
-          }
+      // Find positions where merges occurred by checking ghost tiles destinations
+      const mergePositions = new Set();
+      ghostTilesRef.current.forEach(ghost => {
+        // Check if multiple ghost tiles are moving to the same destination (indicating a merge)
+        const sameDestCount = ghostTilesRef.current.filter(g => 
+          g.to.r === ghost.to.r && g.to.c === ghost.to.c
+        ).length;
+        
+        if (sameDestCount > 1) {
+          mergePositions.add(`${ghost.to.r}-${ghost.to.c}`);
         }
-      }
+      });
       
-      Animated.parallel(animations).start(() => resolve());
+      // Animate only the merged tiles
+      mergePositions.forEach(posKey => {
+        const anim = animatedValues.current[posKey];
+        if (anim) {
+          mergeAnimations.push(
+            Animated.sequence([
+              Animated.timing(anim.scale, {
+                toValue: 1.15,
+                duration: 120,
+                useNativeDriver: true,
+              }),
+              Animated.timing(anim.scale, {
+                toValue: 1,
+                duration: 120,
+                useNativeDriver: true,
+              }),
+            ])
+          );
+        }
+      });
+      
+      if (mergeAnimations.length > 0) {
+        Animated.parallel(mergeAnimations).start(() => resolve());
+      } else {
+        resolve();
+      }
     });
   };
 
