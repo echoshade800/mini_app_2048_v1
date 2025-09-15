@@ -227,7 +227,7 @@ export default function HomeScreen() {
     setMoveCount(0);
 
     // Animate new tiles
-    animateNewTiles(newBoard);
+    animateNewTiles(Array(4).fill(null).map(() => Array(4).fill(null)), newBoard);
   };
 
   const handleMove = useCallback(async (direction) => {
