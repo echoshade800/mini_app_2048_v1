@@ -499,7 +499,7 @@ export default function HomeScreen() {
 
             {/* Game tiles */}
             {state.board.map((row, rowIndex) =>
-              row.map((value, colIndex) => {
+              row.map((tile, colIndex) => {
                 if (!tile) return null;
 
                 const tileId = tile.id;
