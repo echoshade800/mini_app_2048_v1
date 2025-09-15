@@ -26,8 +26,17 @@ import {
 
 const { width: screenWidth } = Dimensions.get('window');
 const BOARD_SIZE = Math.min(screenWidth - 40, 320);
-const TILE_SIZE = (BOARD_SIZE - 20) / 4 - 10;
-const CELL_GAP = 10;
+
+// Unified sizing and positioning constants
+const GRID = 4;
+const PADDING = 10;  // Align with styles.board padding
+const GAP = 10;      // Gap between cells
+const INNER = BOARD_SIZE - PADDING * 2;
+const TILE_SIZE = (INNER - GAP * (GRID + 1)) / GRID;
+
+// Unified coordinate calculation
+const toX = (col) => PADDING + GAP + col * (TILE_SIZE + GAP);
+const toY = (row) => PADDING + GAP + row * (TILE_SIZE + GAP);
 
 /**
  * Home Screen - Main Game Board
@@ -48,9 +57,6 @@ export default function HomeScreen() {
   }, [state.isAnimating]);
 
   // Helper functions for coordinate conversion
-  const toX = (col) => col * (TILE_SIZE + CELL_GAP) + CELL_GAP;
-  const toY = (row) => row * (TILE_SIZE + CELL_GAP) + CELL_GAP;
-
   // Compute transitions for UI animation (does not change game logic)
   const computeTransitionsUIOnly = (beforeBoard, afterBoard, direction) => {
     const transitions = [];
@@ -543,10 +549,17 @@ export default function HomeScreen() {
             ]}
           >
             {/* Background grid */}
-            {Array.from({ length: 16 }).map((_, index) => {
-              const left = (index % 4) * (TILE_SIZE + CELL_GAP) + CELL_GAP;
-              const top = Math.floor(index / 4) * (TILE_SIZE + CELL_GAP) + CELL_GAP;
-              return <View key={index} style={[styles.gridCell, { width: TILE_SIZE, height: TILE_SIZE, left, top }]} />;
+            {Array.from({ length: 16 }).map((_, i) => {
+              const row = Math.floor(i / GRID), col = i % GRID;
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.gridCell,
+                    { width: TILE_SIZE, height: TILE_SIZE, left: toX(col), top: toY(row) }
+                  ]}
+                />
+              );
             })}
 
             {/* Game tiles */}
@@ -582,9 +595,9 @@ export default function HomeScreen() {
                       {
                         width: TILE_SIZE,
                         height: TILE_SIZE,
+                        left: toX(colIndex),
+                        top: toY(rowIndex),
                         transform: [
-                          { translateX: pos.x },
-                          { translateY: pos.y },
                           { scale: anim.scale }
                         ],
                         opacity: anim.opacity,
