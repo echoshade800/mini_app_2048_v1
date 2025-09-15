@@ -26,7 +26,17 @@ import {
 
 const { width: screenWidth } = Dimensions.get('window');
 const BOARD_SIZE = Math.min(screenWidth - 40, 320);
-const TILE_SIZE = (BOARD_SIZE - 20) / 4 - 10;
+
+// Unified grid constants
+const GRID = 4;
+const PADDING = 10;
+const GAP = 10;
+const INNER = BOARD_SIZE - PADDING * 2;
+const TILE_SIZE = (INNER - GAP * (GRID + 1)) / GRID;
+
+// Coordinate helpers
+const toX = (c) => PADDING + GAP + c * (TILE_SIZE + GAP);
+const toY = (r) => PADDING + GAP + r * (TILE_SIZE + GAP);
 
 /**
  * Home Screen - Main Game Board
@@ -37,7 +47,9 @@ export default function HomeScreen() {
   const { state, dispatch, saveGameData } = useGame();
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
+  const [isSliding, setIsSliding] = useState(false);
   const animatedValues = useRef({});
+  const ghostTilesRef = useRef([]);
 
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
   const isAnimatingRef = useRef(state.isAnimating);
@@ -105,6 +117,61 @@ export default function HomeScreen() {
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [state.isAnimating, state.board]);
 
+  // Compute UI transitions for sliding animation
+  const computeTransitionsUIOnly = (prevBoard, nextBoard, direction) => {
+    const moves = [];
+    const N = 4;
+
+    const processLine = (cells, isRow, fixedIndex) => {
+      const nonEmpty = cells.filter(x => x.v != null);
+      const targets = [];
+      let i = 0;
+      while (i < nonEmpty.length) {
+        if (i + 1 < nonEmpty.length && nonEmpty[i].v === nonEmpty[i+1].v) {
+          targets.push({v: nonEmpty[i].v * 2, froms: [nonEmpty[i], nonEmpty[i+1]]});
+          i += 2;
+        } else {
+          targets.push({v: nonEmpty[i].v, froms: [nonEmpty[i]]});
+          i += 1;
+        }
+      }
+      
+      targets.forEach((t, idx) => {
+        const destIndex = idx;
+        t.froms.forEach(src => {
+          moves.push({
+            from: { r: src.r, c: src.c },
+            to: isRow
+              ? { r: fixedIndex, c: destIndex }
+              : { r: destIndex,  c: fixedIndex },
+            value: src.v
+          });
+        });
+      });
+    };
+
+    if (direction === 'left' || direction === 'right') {
+      for (let r = 0; r < N; r++) {
+        let line = [];
+        for (let c = 0; c < N; c++) {
+          const cc = (direction === 'left') ? c : (N - 1 - c);
+          line.push({ v: prevBoard[r][cc], r, c: cc });
+        }
+        processLine(line, true, r);
+      }
+    } else {
+      for (let c = 0; c < N; c++) {
+        let line = [];
+        for (let r = 0; r < N; r++) {
+          const rr = (direction === 'up') ? r : (N - 1 - r);
+          line.push({ v: prevBoard[rr][c], r: rr, c });
+        }
+        processLine(line, false, c);
+      }
+    }
+    return moves;
+  };
+
   const startNewGame = () => {
     const newBoard = initializeBoard();
     const gameData = {
@@ -118,12 +185,17 @@ export default function HomeScreen() {
     setMoveCount(0);
 
     // Animate new tiles
-    animateNewTiles(newBoard);
+    animateNewTiles(createEmptyBoard(), newBoard);
+  };
+
+  const createEmptyBoard = () => {
+    return Array(4).fill(null).map(() => Array(4).fill(null));
   };
 
   const handleMove = useCallback(async (direction) => {
     if (state.gameState !== 'playing' || state.isAnimating) return;
 
+    const prev = state.board;
     const result = move(state.board, direction);
     
     if (!result.isValidMove) {
@@ -155,42 +227,67 @@ export default function HomeScreen() {
     }
 
     dispatch({ type: 'SET_ANIMATING', payload: true });
+    setIsSliding(true);
 
     // Update score
     const newScore = state.score + result.score;
     dispatch({ type: 'UPDATE_SCORE', payload: newScore });
 
-    // Animate merges
-    await animateMerges();
+    // Generate ghost tiles for sliding animation
+    const transitions = computeTransitionsUIOnly(prev, result.board, direction)
+      .filter(t => !(t.from.r === t.to.r && t.from.c === t.to.c));
+    
+    ghostTilesRef.current = transitions.map(t => ({
+      key: `${t.from.r}-${t.from.c}`,
+      value: prev[t.from.r][t.from.c],
+      from: t.from,
+      to: t.to,
+      anim: new Animated.ValueXY({ x: toX(t.from.c), y: toY(t.from.r) }),
+    }));
 
-    // Update board
-    dispatch({ type: 'SET_BOARD', payload: result.board });
+    // Start sliding animation
+    const slideAnims = ghostTilesRef.current.map(g =>
+      Animated.timing(g.anim, {
+        toValue: { x: toX(g.to.c), y: toY(g.to.r) },
+        duration: 120,
+        useNativeDriver: true,
+      })
+    );
 
-    // Add new tile
-    const boardWithNewTile = addRandomTile(result.board);
-    dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
+    Animated.parallel(slideAnims).start(async () => {
+      // Commit new board after sliding
+      dispatch({ type: 'SET_BOARD', payload: result.board });
 
-    // Animate new tile
-    animateNewTiles(boardWithNewTile);
+      // Animate merges
+      await animateMerges();
 
-    setMoveCount(prev => prev + 1);
+      // Add new tile and animate only the new tile
+      const boardWithNewTile = addRandomTile(result.board);
+      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
+      animateNewTiles(result.board, boardWithNewTile);
 
-    // Check win condition
-    if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
-      dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
-      showWinModal();
-    } else if (checkGameOver(boardWithNewTile)) {
-      dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-      await endGame(boardWithNewTile, newScore, false);
-      showLoseModal();
-    }
+      // Clear ghost tiles
+      ghostTilesRef.current = [];
+      setIsSliding(false);
+      dispatch({ type: 'SET_ANIMATING', payload: false });
 
-    // Haptic feedback for valid move
-    if (state.hapticsOn && Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+      setMoveCount(prev => prev + 1);
 
-    dispatch({ type: 'SET_ANIMATING', payload: false });
+      // Check win condition
+      if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
+        dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
+        showWinModal();
+      } else if (checkGameOver(boardWithNewTile)) {
+        dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
+        await endGame(boardWithNewTile, newScore, false);
+        showLoseModal();
+      }
+
+      // Haptic feedback for valid move
+      if (state.hapticsOn && Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    });
   }, [state.gameState, state.isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
   // 用 useMemo 重建 PanResponder，避免旧值问题
@@ -260,11 +357,11 @@ export default function HomeScreen() {
     });
   };
 
-  const animateNewTiles = (board) => {
+  const animateNewTiles = (prevBoard, nextBoard) => {
     // Find new tiles and animate them
     for (let row = 0; row < 4; row++) {
       for (let col = 0; col < 4; col++) {
-        if (board[row][col] && !state.board[row][col]) {
+        if (nextBoard[row][col] && !prevBoard[row][col]) {
           const key = `${row}-${col}`;
           const anim = animatedValues.current[key];
           
@@ -446,10 +543,14 @@ export default function HomeScreen() {
             ]}
           >
             {/* Background grid */}
-            {Array.from({ length: 16 }).map((_, index) => {
-              const left = (index % 4) * (TILE_SIZE + 10) + 10;
-              const top = Math.floor(index / 4) * (TILE_SIZE + 10) + 10;
-              return <View key={index} style={[styles.gridCell, { width: TILE_SIZE, height: TILE_SIZE, left, top }]} />;
+            {Array.from({ length: 16 }).map((_, i) => {
+              const r = Math.floor(i / GRID), c = i % GRID;
+              return (
+                <View
+                  key={i}
+                  style={[styles.gridCell, { width: TILE_SIZE, height: TILE_SIZE, left: toX(c), top: toY(r) }]}
+                />
+              );
             })}
 
             {/* Game tiles */}
@@ -459,6 +560,8 @@ export default function HomeScreen() {
 
                 const key = `${rowIndex}-${colIndex}`;
                 const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
+                const movingOldKey = `${rowIndex}-${colIndex}`;
+                const isHidden = isSliding && ghostTilesRef.current.some(g => g.key === movingOldKey);
 
                 return (
                   <Animated.View
@@ -469,10 +572,10 @@ export default function HomeScreen() {
                       {
                         width: TILE_SIZE,
                         height: TILE_SIZE,
-                        left: colIndex * (TILE_SIZE + 10) + 10,
-                        top: rowIndex * (TILE_SIZE + 10) + 10,
+                        left: toX(colIndex),
+                        top: toY(rowIndex),
+                        opacity: isHidden ? 0 : anim.opacity,
                         transform: [{ scale: anim.scale }],
-                        opacity: anim.opacity,
                       },
                     ]}
                   >
@@ -483,6 +586,26 @@ export default function HomeScreen() {
                 );
               })
             )}
+
+            {/* Ghost tiles overlay for sliding animation */}
+            <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, left: 0, top: 0, zIndex: 20 }}>
+              {isSliding && ghostTilesRef.current.map(g => (
+                <Animated.View
+                  key={`ghost-${g.key}`}
+                  style={[
+                    styles.tile,
+                    getTileStyle(g.value),
+                    {
+                      width: TILE_SIZE,
+                      height: TILE_SIZE,
+                      transform: [{ translateX: g.anim.x }, { translateY: g.anim.y }],
+                    },
+                  ]}
+                >
+                  <Text style={[styles.tileText, { fontSize: g.value > 512 ? 24 : 32 }]}>{g.value}</Text>
+                </Animated.View>
+              ))}
+            </View>
           </Animated.View>
         </View>
 
@@ -576,7 +699,7 @@ const styles = StyleSheet.create({
   board: {
     backgroundColor: '#bbada0',
     borderRadius: 12,
-    padding: 10,
+    padding: PADDING,
     position: 'relative',
     marginBottom: 20,
   },
