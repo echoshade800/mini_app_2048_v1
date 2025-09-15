@@ -41,6 +41,11 @@ export default function HomeScreen() {
 
   // Initialize animations for each tile position
   useEffect(() => {
+    // Initialize board shake animation
+    if (!animatedValues.current.board) {
+      animatedValues.current.board = new Animated.Value(0);
+    }
+    
     for (let row = 0; row < 4; row++) {
       for (let col = 0; col < 4; col++) {
         const key = `${row}-${col}`;
@@ -409,6 +414,14 @@ export default function HomeScreen() {
 
         <Animated.View
           style={[styles.board, { width: BOARD_SIZE, height: BOARD_SIZE }]}
+          style={[
+            styles.board, 
+            { 
+              width: BOARD_SIZE, 
+              height: BOARD_SIZE,
+              transform: [{ translateX: animatedValues.current.board || new Animated.Value(0) }]
+            }
+          ]}
           {...panResponder.panHandlers}
         >
           {/* Background grid */}
