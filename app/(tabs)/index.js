@@ -303,9 +303,7 @@ export default function HomeScreen() {
     
     // Force a render cycle to ensure ghost tiles are ready before starting animation
     await new Promise(resolve => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(resolve);
-      });
+      requestAnimationFrame(resolve);
     });
     
     dispatch({ type: 'SET_ANIMATING', payload: true });
