@@ -631,7 +631,7 @@ export default function HomeScreen() {
           >
             {/* Background grid */}
             {Array.from({ length: 16 }).map((_, i) => {
-              const r = Math.floor(i / GRID), c = i % GRID;
+              const r = Math.floor(i / GRID_ROW_CELLS), c = i % GRID_ROW_CELLS;
               return (
                 <View
                   key={i}
