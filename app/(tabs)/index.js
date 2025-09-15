@@ -48,6 +48,8 @@ export default function HomeScreen() {
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
   const [isSliding, setIsSliding] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergingPositions, setMergingPositions] = useState(new Set());
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
 
@@ -177,6 +179,59 @@ export default function HomeScreen() {
     return moves;
   };
 
+  // 计算合并目标位置
+  const computeMergeTargets = (prevBoard, direction) => {
+    const N = 4;
+    const mergeTargets = [];
+
+    const processLine = (cells, isRow, fixedIndex) => {
+      const nonEmpty = cells.filter(x => x.v != null);
+      let i = 0, dest = 0;
+      while (i < nonEmpty.length) {
+        if (i + 1 < nonEmpty.length && nonEmpty[i].v === nonEmpty[i + 1].v) {
+          // 合并发生，计算目标位置
+          let targetPos;
+          if (isRow) {
+            targetPos = direction === 'left' 
+              ? { r: fixedIndex, c: dest }
+              : { r: fixedIndex, c: N - 1 - dest };
+          } else {
+            targetPos = direction === 'up'
+              ? { r: dest, c: fixedIndex }
+              : { r: N - 1 - dest, c: fixedIndex };
+          }
+          mergeTargets.push(targetPos);
+          dest += 1;
+          i += 2;
+        } else {
+          dest += 1;
+          i += 1;
+        }
+      }
+    };
+
+    if (direction === 'left' || direction === 'right') {
+      for (let r = 0; r < N; r++) {
+        const line = [];
+        for (let c = 0; c < N; c++) {
+          const cc = direction === 'left' ? c : (N - 1 - c);
+          line.push({ v: prevBoard[r][cc], r, c: cc });
+        }
+        processLine(line, true, r);
+      }
+    } else {
+      for (let c = 0; c < N; c++) {
+        const line = [];
+        for (let r = 0; r < N; r++) {
+          const rr = direction === 'up' ? r : (N - 1 - r);
+          line.push({ v: prevBoard[rr][c], r: rr, c });
+        }
+        processLine(line, false, c);
+      }
+    }
+    return mergeTargets;
+  };
+
   const startNewGame = () => {
     const newBoard = initializeBoard();
     const gameData = {
@@ -271,9 +326,23 @@ export default function HomeScreen() {
     Animated.parallel(slideAnims).start(async () => {
       // Commit new board after sliding
       dispatch({ type: 'SET_BOARD', payload: result.board });
+      
+      // 计算合并目标位置
+      const mergeTargets = computeMergeTargets(prev, direction);
+      
+      // 设置合并状态，隐藏合并位置的瓦片
+      if (mergeTargets.length > 0) {
+        const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
+        setMergingPositions(mergePositionKeys);
+        setIsMerging(true);
+      }
 
-      // Animate merges
-      await animateMerges();
+      // 只对合并位置做弹跳动画
+      await animateMergeBounce(mergeTargets);
+      
+      // 清除合并状态
+      setIsMerging(false);
+      setMergingPositions(new Set());
 
       // Add new tile and animate only the new tile
       const boardWithNewTile = addRandomTile(result.board);
@@ -338,32 +407,33 @@ export default function HomeScreen() {
     onShouldBlockNativeResponder: () => true,
   }), [handleMove]); // 只依赖稳定的 handleMove
 
-  const animateMerges = () => {
+  // 只对合并位置做弹跳动画
+  const animateMergeBounce = (mergeTargets) => {
     return new Promise(resolve => {
-      // Animate merge effects
+      if (!mergeTargets || mergeTargets.length === 0) {
+        return resolve();
+      }
+
       const animations = [];
-      
-      for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 4; col++) {
-          const key = `${row}-${col}`;
-          const anim = animatedValues.current[key];
-          
-          if (anim) {
-            animations.push(
-              Animated.sequence([
-                Animated.timing(anim.scale, {
-                  toValue: 1.1,
-                  duration: 100,
-                  useNativeDriver: true,
-                }),
-                Animated.timing(anim.scale, {
-                  toValue: 1,
-                  duration: 100,
-                  useNativeDriver: true,
-                }),
-              ])
-            );
-          }
+      for (const { r, c } of mergeTargets) {
+        const key = `${r}-${c}`;
+        const anim = animatedValues.current[key];
+        
+        if (anim) {
+          animations.push(
+            Animated.sequence([
+              Animated.timing(anim.scale, {
+                toValue: 1.12,
+                duration: 100,
+                useNativeDriver: true,
+              }),
+              Animated.timing(anim.scale, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+              }),
+            ])
+          );
         }
       }
       
@@ -575,7 +645,8 @@ export default function HomeScreen() {
                 const key = `${rowIndex}-${colIndex}`;
                 const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
                 const movingOldKey = `${rowIndex}-${colIndex}`;
-                const isHidden = isSliding && ghostTilesRef.current.some(g => g.key === movingOldKey);
+                const isHidden = (isSliding && ghostTilesRef.current.some(g => g.key === movingOldKey)) ||
+                                 (isMerging && mergingPositions.has(movingOldKey));
 
                 return (
                   <Animated.View
