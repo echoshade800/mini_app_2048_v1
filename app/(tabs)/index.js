@@ -642,12 +642,8 @@ export default function HomeScreen() {
 
                 const key = `${rowIndex}-${colIndex}`;
                 const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
-                const movingOldKey = `${rowIndex}-${colIndex}`;
-                const isHidden = (isSliding && ghostTilesRef.current.some(g => g.key === movingOldKey)) ||
-                                 (isMerging && mergingPositions.has(movingOldKey));
-                const movingOldKey = `${rowIndex}-${colIndex}`;
-                const isHidden = (isSliding && ghostTilesRef.current.some(g => g.key === movingOldKey)) ||
-                                 (isMerging && mergingPositions.has(movingOldKey));
+                const isHidden = (isSliding && ghostTilesRef.current.some(g => g.key === key)) ||
+                                 (isMerging && mergingPositions.has(key));
 
                 return (
                   <Animated.View
