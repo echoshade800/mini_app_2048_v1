@@ -94,7 +94,7 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="person-circle" size={24} color="#667eea" />
-            <Text style={styles.sectionTitle}>Player Info</Text>
+            <Text style={styles.sectionTitle}>Info</Text>
           </View>
           
           <View style={styles.userInfo}>
