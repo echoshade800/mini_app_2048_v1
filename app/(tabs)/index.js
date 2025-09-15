@@ -102,16 +102,17 @@ export default function HomeScreen() {
   // Pan responder for gestures
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !state.isAnimating,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+        if (state.isAnimating) return false;
+        return Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10;
       },
 
       onPanResponderRelease: (event, gestureState) => {
         if (state.isAnimating) return;
 
         const { dx, dy } = gestureState;
-        const threshold = 20;
+        const threshold = 20; // 20px minimum swipe distance
 
         if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
 
@@ -124,6 +125,9 @@ export default function HomeScreen() {
 
         handleMove(direction);
       },
+
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => false,
     })
   ).current;
 
@@ -144,34 +148,42 @@ export default function HomeScreen() {
   };
 
   const handleMove = async (direction) => {
-    if (state.gameState !== 'playing' || state.isAnimating) return;
+    if (state.gameState !== 'playing' || state.isAnimating) {
+      return;
+    }
 
     const result = move(state.board, direction);
     
     if (!result.isValidMove) {
       // Invalid move - shake animation and haptic
       if (state.hapticsOn && Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        } catch (error) {
+          console.log('Haptics not available');
+        }
       }
       
       // Shake animation
-      Animated.sequence([
-        Animated.timing(animatedValues.current.board, { 
-          toValue: 10, 
-          duration: 50, 
-          useNativeDriver: true 
-        }),
-        Animated.timing(animatedValues.current.board, { 
-          toValue: -10, 
-          duration: 50, 
-          useNativeDriver: true 
-        }),
-        Animated.timing(animatedValues.current.board, { 
-          toValue: 0, 
-          duration: 50, 
-          useNativeDriver: true 
-        }),
-      ]).start();
+      if (animatedValues.current.board) {
+        Animated.sequence([
+          Animated.timing(animatedValues.current.board, { 
+            toValue: 5, 
+            duration: 50, 
+            useNativeDriver: true 
+          }),
+          Animated.timing(animatedValues.current.board, { 
+            toValue: -5, 
+            duration: 50, 
+            useNativeDriver: true 
+          }),
+          Animated.timing(animatedValues.current.board, { 
+            toValue: 0, 
+            duration: 50, 
+            useNativeDriver: true 
+          }),
+        ]).start();
+      }
       
       return;
     }
@@ -209,10 +221,17 @@ export default function HomeScreen() {
 
     // Haptic feedback for valid move
     if (state.hapticsOn && Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } catch (error) {
+        console.log('Haptics not available');
+      }
     }
 
-    dispatch({ type: 'SET_ANIMATING', payload: false });
+    // Add small delay before allowing next move
+    setTimeout(() => {
+      dispatch({ type: 'SET_ANIMATING', payload: false });
+    }, 100);
   };
 
   const animateMerges = () => {
@@ -416,6 +435,7 @@ export default function HomeScreen() {
 
         <Animated.View
           style={[styles.board, { width: BOARD_SIZE, height: BOARD_SIZE }]}
+          transform={[{ translateX: animatedValues.current.board || new Animated.Value(0) }]}
           {...panResponder.panHandlers}
         >
           {/* Background grid */}
