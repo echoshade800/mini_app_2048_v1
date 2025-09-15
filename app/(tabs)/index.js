@@ -79,59 +79,6 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // 计算合并目标位置
-  const computeMergeTargets = (prevBoard, direction) => {
-    const N = 4;
-    const mergeTargets = [];
-
-    const processLine = (cells, isRow, fixedIndex) => {
-      const nonEmpty = cells.filter(x => x.v != null);
-      let i = 0, dest = 0;
-      while (i < nonEmpty.length) {
-        if (i + 1 < nonEmpty.length && nonEmpty[i].v === nonEmpty[i + 1].v) {
-          // 合并发生，计算目标位置
-          let targetPos;
-          if (isRow) {
-            targetPos = direction === 'left' 
-              ? { r: fixedIndex, c: dest }
-              : { r: fixedIndex, c: N - 1 - dest };
-          } else {
-            targetPos = direction === 'up'
-              ? { r: dest, c: fixedIndex }
-              : { r: N - 1 - dest, c: fixedIndex };
-          }
-          mergeTargets.push(targetPos);
-          dest += 1;
-          i += 2;
-        } else {
-          dest += 1;
-          i += 1;
-        }
-      }
-    };
-
-    if (direction === 'left' || direction === 'right') {
-      for (let r = 0; r < N; r++) {
-        const line = [];
-        for (let c = 0; c < N; c++) {
-          const cc = direction === 'left' ? c : (N - 1 - c);
-          line.push({ v: prevBoard[r][cc], r, c: cc });
-        }
-        processLine(line, true, r);
-      }
-    } else {
-      for (let c = 0; c < N; c++) {
-        const line = [];
-        for (let r = 0; r < N; r++) {
-          const rr = direction === 'up' ? r : (N - 1 - r);
-          line.push({ v: prevBoard[rr][c], r: rr, c });
-        }
-        processLine(line, false, c);
-      }
-    }
-    return mergeTargets;
-  };
-
   // Initialize game on first load
   useEffect(() => {
     if (state.isLoading) return;
@@ -395,23 +342,6 @@ export default function HomeScreen() {
       setIsMerging(false);
       setMergingPositions(new Set());
 
-      // 计算合并目标位置
-      const mergeTargets = computeMergeTargets(prev, direction);
-      
-      // 设置合并状态，隐藏合并位置的瓦片
-      if (mergeTargets.length > 0) {
-        const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
-        setMergingPositions(mergePositionKeys);
-        setIsMerging(true);
-      }
-
-      // 只对合并位置做弹跳动画
-      await animateMergeBounce(mergeTargets);
-      
-      // 清除合并状态
-      setIsMerging(false);
-      setMergingPositions(new Set());
-
       // Add new tile and animate only the new tile
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
@@ -474,40 +404,6 @@ export default function HomeScreen() {
     },
     onShouldBlockNativeResponder: () => true,
   }), [handleMove]); // 只依赖稳定的 handleMove
-
-  // 只对合并位置做弹跳动画
-  const animateMergeBounce = (mergeTargets) => {
-    return new Promise(resolve => {
-      if (!mergeTargets || mergeTargets.length === 0) {
-        return resolve();
-      }
-
-      const animations = [];
-      for (const { r, c } of mergeTargets) {
-        const key = `${r}-${c}`;
-        const anim = animatedValues.current[key];
-        
-        if (anim) {
-          animations.push(
-            Animated.sequence([
-              Animated.timing(anim.scale, {
-                toValue: 1.12,
-                duration: 100,
-                useNativeDriver: true,
-              }),
-              Animated.timing(anim.scale, {
-                toValue: 1,
-                duration: 100,
-                useNativeDriver: true,
-              }),
-            ])
-          );
-        }
-      }
-      
-      Animated.parallel(animations).start(() => resolve());
-    });
-  };
 
   // 只对合并位置做弹跳动画
   const animateMergeBounce = (mergeTargets) => {
