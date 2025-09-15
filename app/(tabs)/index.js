@@ -409,7 +409,6 @@ export default function HomeScreen() {
       {/* Game Board */}
       <View style={styles.gameContainer}>
         <View style={styles.instructions}>
-          <Text style={styles.instructionsText}>
           <Text style={[styles.instructionsText, { color: theme.textSecondary }]}>
             Join the tiles, get to 2048!
           </Text>
