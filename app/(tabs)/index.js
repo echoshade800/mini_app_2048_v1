@@ -53,6 +53,76 @@ export default function HomeScreen() {
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
 
+  // 仅用于 UI 动画：返回本次合并后"新瓦片"（落点）所在格子的坐标数组 [{r,c}]
+  const computeMergeTargets = (prevBoard, direction) => {
+    const N = 4;
+    const targets = [];
+
+    const processLine = (cells, isRow, fixed) => {
+      // cells: 按移动方向取得的一条线 [{v,r,c},...]
+      const nonEmpty = cells.filter(x => x.v != null);
+      let i = 0, dest = 0;
+      while (i < nonEmpty.length) {
+        if (i + 1 < nonEmpty.length && nonEmpty[i].v === nonEmpty[i + 1].v) {
+          const t = isRow ? { r: fixed, c: dest } : { r: dest, c: fixed };
+          targets.push(t);   // 该位置会产生"新瓦片"
+          dest += 1;
+          i += 2;           // 跳过下一块，避免连锁
+        } else {
+          dest += 1;
+          i += 1;
+        }
+      }
+    };
+
+    if (direction === 'left' || direction === 'right') {
+      for (let r = 0; r < N; r++) {
+        const line = [];
+        for (let c = 0; c < N; c++) {
+          const cc = direction === 'left' ? c : (N - 1 - c);
+          line.push({ v: prevBoard[r][cc], r, c: cc });
+        }
+        processLine(line, true, r);
+      }
+    } else {
+      for (let c = 0; c < N; c++) {
+        const line = [];
+        for (let r = 0; r < N; r++) {
+          const rr = direction === 'up' ? r : (N - 1 - r);
+          line.push({ v: prevBoard[rr][c], r: rr, c });
+        }
+        processLine(line, false, c);
+      }
+    }
+    return targets;
+  };
+
+  // 对合并落点做放大回弹；默认每段 100ms（0.1s）
+  const animateMergeBounce = (mergeTargets, up = 1.12, dur = 100) => {
+    return new Promise(resolve => {
+      if (!mergeTargets || mergeTargets.length === 0) return resolve();
+      const anims = [];
+
+      for (const { r, c } of mergeTargets) {
+        const key = `${r}-${c}`;
+        const av = animatedValues.current[key];
+        if (!av) continue;
+
+        // 先重置，避免前一次动画遗留
+        av.scale.setValue(1);
+
+        anims.push(
+          Animated.sequence([
+            Animated.timing(av.scale, { toValue: up, duration: dur, useNativeDriver: true }),
+            Animated.timing(av.scale, { toValue: 1,  duration: dur, useNativeDriver: true }),
+          ])
+        );
+      }
+
+      Animated.parallel(anims).start(() => resolve());
+    });
+  };
+
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
   const isAnimatingRef = useRef(state.isAnimating);
   useEffect(() => {
@@ -322,7 +392,10 @@ export default function HomeScreen() {
     );
 
     Animated.parallel(slideAnims).start(async () => {
-      // Commit new board after sliding
+      // 1) 计算本次"合并落点"——仅 UI 用
+      const mergeTargets = computeMergeTargets(prev, direction);
+
+      // 2) 提交"合并后的棋盘"（尚未生成新砖）
       dispatch({ type: 'SET_BOARD', payload: result.board });
       
       // 计算合并目标位置
@@ -342,7 +415,10 @@ export default function HomeScreen() {
       setIsMerging(false);
       setMergingPositions(new Set());
 
-      // Add new tile and animate only the new tile
+      // 3) 只对"合并落点"弹跳（每段 0.1s）
+      await animateMergeBounce(mergeTargets, 1.12, 100);
+
+      // 4) 生成新砖 & 只对"新增格子"弹入（沿用你已做好的 prev/next 对比）
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
@@ -354,6 +430,7 @@ export default function HomeScreen() {
 
       setMoveCount(prev => prev + 1);
 
+      // 5) 计分、胜负判定、haptics 等（保持你的原有顺序）
       // Check win condition
       if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
         dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
