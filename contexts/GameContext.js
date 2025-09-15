@@ -137,14 +137,10 @@ export function GameProvider({ children }) {
         gameHistory: gameData?.gameHistory || [],
       };
       
-      setTimeout(() => {
-        dispatch({ type: 'INITIALIZE_APP', payload });
-      }, 0);
+      dispatch({ type: 'INITIALIZE_APP', payload });
     } catch (error) {
       console.error('Failed to initialize app:', error);
-      setTimeout(() => {
-        dispatch({ type: 'INITIALIZE_APP', payload: {} });
-      }, 0);
+      dispatch({ type: 'INITIALIZE_APP', payload: {} });
     }
   };
   

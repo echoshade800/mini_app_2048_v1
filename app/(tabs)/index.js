@@ -26,17 +26,7 @@ import {
 
 const { width: screenWidth } = Dimensions.get('window');
 const BOARD_SIZE = Math.min(screenWidth - 40, 320);
-
-// Unified sizing and positioning constants
-const GRID = 4;
-const PADDING = 10;  // Align with styles.board padding
-const GAP = 10;      // Gap between cells
-const INNER = BOARD_SIZE - PADDING * 2;
-const TILE_SIZE = (INNER - GAP * (GRID + 1)) / GRID;
-
-// Unified coordinate calculation
-const toX = (col) => PADDING + GAP + col * (TILE_SIZE + GAP);
-const toY = (row) => PADDING + GAP + row * (TILE_SIZE + GAP);
+const TILE_SIZE = (BOARD_SIZE - 20) / 4 - 10;
 
 /**
  * Home Screen - Main Game Board
@@ -48,7 +38,6 @@ export default function HomeScreen() {
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
   const animatedValues = useRef({});
-  const posAnimsRef = useRef({});
 
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
   const isAnimatingRef = useRef(state.isAnimating);
@@ -56,78 +45,6 @@ export default function HomeScreen() {
     isAnimatingRef.current = state.isAnimating;
   }, [state.isAnimating]);
 
-  // Helper functions for coordinate conversion
-  // Compute transitions for UI animation (does not change game logic)
-  const computeTransitionsUIOnly = (beforeBoard, afterBoard, direction) => {
-    const transitions = [];
-    
-    // Create a map of values in the after board for matching
-    const afterPositions = {};
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 4; c++) {
-        if (afterBoard[r][c] !== null) {
-          const key = `${r}-${c}`;
-          afterPositions[key] = afterBoard[r][c];
-        }
-      }
-    }
-    
-    // For each non-null tile in before board, find where it should move
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 4; c++) {
-        if (beforeBoard[r][c] !== null) {
-          const value = beforeBoard[r][c];
-          
-          // Find target position based on direction and game logic
-          let targetR = r, targetC = c;
-          
-          if (direction === 'left') {
-            // Find leftmost available position
-            for (let newC = 0; newC < 4; newC++) {
-              if (afterBoard[r][newC] === value) {
-                targetC = newC;
-                break;
-              }
-            }
-          } else if (direction === 'right') {
-            // Find rightmost available position
-            for (let newC = 3; newC >= 0; newC--) {
-              if (afterBoard[r][newC] === value) {
-                targetC = newC;
-                break;
-              }
-            }
-          } else if (direction === 'up') {
-            // Find topmost available position
-            for (let newR = 0; newR < 4; newR++) {
-              if (afterBoard[newR][c] === value) {
-                targetR = newR;
-                break;
-              }
-            }
-          } else if (direction === 'down') {
-            // Find bottommost available position
-            for (let newR = 3; newR >= 0; newR--) {
-              if (afterBoard[newR][c] === value) {
-                targetR = newR;
-                break;
-              }
-            }
-          }
-          
-          // Only add transition if position actually changed
-          if (targetR !== r || targetC !== c) {
-            transitions.push({
-              from: { r, c },
-              to: { r: targetR, c: targetC }
-            });
-          }
-        }
-      }
-    }
-    
-    return transitions;
-  };
   // Initialize animations for each tile position
   useEffect(() => {
     // Initialize board shake animation
@@ -148,30 +65,6 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // Manage Animated.ValueXY instances for tile positions
-  useEffect(() => {
-    const newPosAnims = {};
-    
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 4; col++) {
-        if (state.board[row][col] !== null) {
-          const key = `${row}-${col}`;
-          
-          // Reuse existing animator or create new one
-          if (posAnimsRef.current[key]) {
-            newPosAnims[key] = posAnimsRef.current[key];
-            // Update position to current cell
-            newPosAnims[key].setValue({ x: toX(col), y: toY(row) });
-          } else {
-            newPosAnims[key] = new Animated.ValueXY({ x: toX(col), y: toY(row) });
-          }
-        }
-      }
-    }
-    
-    posAnimsRef.current = newPosAnims;
-  }, [state.board]);
-
   // Initialize game on first load
   useEffect(() => {
     if (state.isLoading) return;
@@ -184,9 +77,7 @@ export default function HomeScreen() {
     
     // Initialize board if empty
     if (state.board.every(row => row.every(cell => cell === null))) {
-      setTimeout(() => {
-        startNewGame();
-      }, 0);
+      startNewGame();
     }
   }, [state.isLoading, state.showOnboarding]);
 
@@ -227,14 +118,13 @@ export default function HomeScreen() {
     setMoveCount(0);
 
     // Animate new tiles
-    animateNewTiles(Array(4).fill(null).map(() => Array(4).fill(null)), newBoard);
+    animateNewTiles(newBoard);
   };
 
   const handleMove = useCallback(async (direction) => {
-    if (state.gameState !== 'playing' || isAnimatingRef.current) return;
+    if (state.gameState !== 'playing' || state.isAnimating) return;
 
-    const beforeBoard = state.board;
-    const result = move(beforeBoard, direction);
+    const result = move(state.board, direction);
     
     if (!result.isValidMove) {
       // Invalid move - shake animation and haptic
@@ -266,21 +156,33 @@ export default function HomeScreen() {
 
     dispatch({ type: 'SET_ANIMATING', payload: true });
 
-    // 1) Compute transitions for UI animation
-    const transitions = computeTransitionsUIOnly(beforeBoard, result.board, direction);
+    // Update score
+    const newScore = state.score + result.score;
+    dispatch({ type: 'UPDATE_SCORE', payload: newScore });
 
-    // 2) Animate tiles to their target positions
-    const anims = [];
-    for (const t of transitions) {
-      const oldKey = `${t.from.r}-${t.from.c}`;
-      const pos = posAnimsRef.current[oldKey];
-      if (pos) {
-        anims.push(Animated.timing(pos, {
-          toValue: { x: toX(t.to.c), y: toY(t.to.r) },
-          duration: 120,
-          useNativeDriver: true,
-        }));
-      }
+    // Animate merges
+    await animateMerges();
+
+    // Update board
+    dispatch({ type: 'SET_BOARD', payload: result.board });
+
+    // Add new tile
+    const boardWithNewTile = addRandomTile(result.board);
+    dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
+
+    // Animate new tile
+    animateNewTiles(boardWithNewTile);
+
+    setMoveCount(prev => prev + 1);
+
+    // Check win condition
+    if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
+      dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
+      showWinModal();
+    } else if (checkGameOver(boardWithNewTile)) {
+      dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
+      await endGame(boardWithNewTile, newScore, false);
+      showLoseModal();
     }
 
     // Haptic feedback for valid move
@@ -288,38 +190,7 @@ export default function HomeScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    Animated.parallel(anims).start(async () => {
-      // 3) Animation finished - commit new board state
-      dispatch({ type: 'SET_BOARD', payload: result.board });
-
-      // 4) Update score
-      const newScore = state.score + result.score;
-      dispatch({ type: 'UPDATE_SCORE', payload: newScore });
-
-      // 5) Animate merges (bounce effect)
-      await animateMerges();
-
-      // 6) Add new tile
-      const boardWithNewTile = addRandomTile(result.board);
-      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
-      
-      // 7) Animate only the truly new tile
-      animateNewTiles(result.board, boardWithNewTile);
-
-      setMoveCount(prev => prev + 1);
-
-      // 8) Check win/lose conditions
-      if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
-        showWinModal();
-      } else if (checkGameOver(boardWithNewTile)) {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-        await endGame(boardWithNewTile, newScore, false);
-        showLoseModal();
-      }
-
-      dispatch({ type: 'SET_ANIMATING', payload: false });
-    });
+    dispatch({ type: 'SET_ANIMATING', payload: false });
   }, [state.gameState, state.isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
   // 用 useMemo 重建 PanResponder，避免旧值问题
@@ -389,14 +260,12 @@ export default function HomeScreen() {
     });
   };
 
-  const animateNewTiles = (prevBoard, nextBoard) => {
+  const animateNewTiles = (board) => {
     // Find new tiles and animate them
-    for (let r = 0; r < GRID; r++) {
-      for (let c = 0; c < GRID; c++) {
-        const wasEmpty = !prevBoard[r][c];
-        const nowHas   = !!nextBoard[r][c];
-        if (wasEmpty && nowHas) {
-          const key = `${r}-${c}`;
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) {
+        if (board[row][col] && !state.board[row][col]) {
+          const key = `${row}-${col}`;
           const anim = animatedValues.current[key];
           
           if (anim) {
@@ -577,17 +446,10 @@ export default function HomeScreen() {
             ]}
           >
             {/* Background grid */}
-            {Array.from({ length: 16 }).map((_, i) => {
-              const row = Math.floor(i / GRID), col = i % GRID;
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.gridCell,
-                    { width: TILE_SIZE, height: TILE_SIZE, left: toX(col), top: toY(row) }
-                  ]}
-                />
-              );
+            {Array.from({ length: 16 }).map((_, index) => {
+              const left = (index % 4) * (TILE_SIZE + 10) + 10;
+              const top = Math.floor(index / 4) * (TILE_SIZE + 10) + 10;
+              return <View key={index} style={[styles.gridCell, { width: TILE_SIZE, height: TILE_SIZE, left, top }]} />;
             })}
 
             {/* Game tiles */}
@@ -597,9 +459,6 @@ export default function HomeScreen() {
 
                 const key = `${rowIndex}-${colIndex}`;
                 const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
-                const pos = posAnimsRef.current[key];
-
-                if (!pos) return null; // Skip if position animator not ready
 
                 return (
                   <Animated.View
@@ -610,10 +469,9 @@ export default function HomeScreen() {
                       {
                         width: TILE_SIZE,
                         height: TILE_SIZE,
-                        ...pos.getLayout(),
-                        transform: [
-                          { scale: anim.scale }
-                        ],
+                        left: colIndex * (TILE_SIZE + 10) + 10,
+                        top: rowIndex * (TILE_SIZE + 10) + 10,
+                        transform: [{ scale: anim.scale }],
                         opacity: anim.opacity,
                       },
                     ]}
