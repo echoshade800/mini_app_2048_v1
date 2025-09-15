@@ -39,6 +39,10 @@ const cellPosition = (x) => {
   return GRID_SPACING + x * (TILE_SIZE + GRID_SPACING);
 };
 
+// Helper functions for tile positioning
+const toX = (col) => cellPosition(col);
+const toY = (row) => cellPosition(row);
+
 /**
  * Home Screen - Main Game Board
  * Purpose: Play 2048 + quick actions (score, best, new game)
