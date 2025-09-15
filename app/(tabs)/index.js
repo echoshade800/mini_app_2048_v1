@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useGame } from '../../contexts/GameContext';
+import { getTheme, createThemedStyles } from '../../utils/ThemeUtils';
 import {
   initializeBoard,
   move,
@@ -35,6 +36,7 @@ const TILE_SIZE = (BOARD_SIZE - 20) / 4 - 10;
  */
 export default function HomeScreen() {
   const { state, dispatch, saveGameData } = useGame();
+  const theme = getTheme(state.effectiveTheme);
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
   const animatedValues = useRef({});
@@ -363,21 +365,8 @@ export default function HomeScreen() {
   };
 
   const getTileStyle = (value) => {
-    const colors = {
-      2: { bg: '#eee4da', text: '#776e65' },
-      4: { bg: '#ede0c8', text: '#776e65' },
-      8: { bg: '#f2b179', text: '#f9f6f2' },
-      16: { bg: '#f59563', text: '#f9f6f2' },
-      32: { bg: '#f67c5f', text: '#f9f6f2' },
-      64: { bg: '#f65e3b', text: '#f9f6f2' },
-      128: { bg: '#edcf72', text: '#f9f6f2' },
-      256: { bg: '#edcc61', text: '#f9f6f2' },
-      512: { bg: '#edc850', text: '#f9f6f2' },
-      1024: { bg: '#edc53f', text: '#f9f6f2' },
-      2048: { bg: '#edc22e', text: '#f9f6f2' },
-    };
-
-    const color = colors[value] || { bg: '#3c3a32', text: '#f9f6f2' };
+    const tileKey = `tile${value}`;
+    const color = theme[tileKey] || theme.tileDefault;
     
     return {
       backgroundColor: color.bg,
@@ -387,29 +376,31 @@ export default function HomeScreen() {
 
   if (state.isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  const themedStyles = createThemedStyles(styles, theme);
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.gameBackground }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.scoreContainer}>
-          <View style={styles.scoreBox}>
-            <Text style={styles.scoreLabel}>SCORE</Text>
-            <Text style={styles.scoreValue}>{state.score}</Text>
+          <View style={[styles.scoreBox, { backgroundColor: theme.scoreBackground }]}>
+            <Text style={[styles.scoreLabel, { color: theme.scoreLabel }]}>SCORE</Text>
+            <Text style={[styles.scoreValue, { color: theme.scoreValue }]}>{state.score}</Text>
           </View>
-          <View style={styles.scoreBox}>
-            <Text style={styles.scoreLabel}>BEST</Text>
-            <Text style={styles.scoreValue}>{state.bestScore}</Text>
+          <View style={[styles.scoreBox, { backgroundColor: theme.scoreBackground }]}>
+            <Text style={[styles.scoreLabel, { color: theme.scoreLabel }]}>BEST</Text>
+            <Text style={[styles.scoreValue, { color: theme.scoreValue }]}>{state.bestScore}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.newGameButton} onPress={startNewGame}>
+        <TouchableOpacity style={[styles.newGameButton, { backgroundColor: theme.buttonSecondary }]} onPress={startNewGame}>
           <Ionicons name="refresh" size={16} color="#ffffff" />
           <Text style={styles.newGameText}>New Game</Text>
         </TouchableOpacity>
@@ -419,10 +410,11 @@ export default function HomeScreen() {
       <View style={styles.gameContainer}>
         <View style={styles.instructions}>
           <Text style={styles.instructionsText}>
+          <Text style={[styles.instructionsText, { color: theme.textSecondary }]}>
             Join the tiles, get to 2048!
           </Text>
           <TouchableOpacity onPress={() => router.push('/history')}>
-            <Text style={styles.historyLink}>View History</Text>
+            <Text style={[styles.historyLink, { color: theme.primary }]}>View History</Text>
           </TouchableOpacity>
         </View>
 
@@ -438,6 +430,7 @@ export default function HomeScreen() {
           <Animated.View
             style={[
               styles.board,
+              { backgroundColor: theme.boardBackground },
               { 
                 width: BOARD_SIZE, 
                 height: BOARD_SIZE,
@@ -449,7 +442,7 @@ export default function HomeScreen() {
             {Array.from({ length: 16 }).map((_, index) => {
               const left = (index % 4) * (TILE_SIZE + 10) + 10;
               const top = Math.floor(index / 4) * (TILE_SIZE + 10) + 10;
-              return <View key={index} style={[styles.gridCell, { width: TILE_SIZE, height: TILE_SIZE, left, top }]} />;
+              return <View key={index} style={[styles.gridCell, { backgroundColor: theme.gridCell, width: TILE_SIZE, height: TILE_SIZE, left, top }]} />;
             })}
 
             {/* Game tiles */}
@@ -488,7 +481,7 @@ export default function HomeScreen() {
 
         {/* Game instructions for mobile */}
         <View style={styles.controls}>
-          <Text style={styles.controlsText}>
+          <Text style={[styles.controlsText, { color: theme.buttonSecondary }]}>
             {Platform.OS === 'web' ? 'Use arrow keys or swipe to move' : 'Swipe in any direction to move tiles'}
           </Text>
         </View>
@@ -500,7 +493,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#faf8ef',
     paddingHorizontal: 20,
   },
   loadingContainer: {
@@ -510,7 +502,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 18,
-    color: '#776e65',
   },
   header: {
     flexDirection: 'row',
@@ -523,7 +514,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   scoreBox: {
-    backgroundColor: '#bbada0',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -533,16 +523,13 @@ const styles = StyleSheet.create({
   scoreLabel: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#eee4da',
     marginBottom: 2,
   },
   scoreValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#ffffff',
   },
   newGameButton: {
-    backgroundColor: '#8f7a66',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
@@ -565,23 +552,19 @@ const styles = StyleSheet.create({
   },
   instructionsText: {
     fontSize: 16,
-    color: '#776e65',
     marginBottom: 8,
   },
   historyLink: {
     fontSize: 14,
-    color: '#667eea',
     textDecorationLine: 'underline',
   },
   board: {
-    backgroundColor: '#bbada0',
     borderRadius: 12,
     padding: 10,
     position: 'relative',
     marginBottom: 20,
   },
   gridCell: {
-    backgroundColor: '#cdc1b4',
     borderRadius: 6,
     position: 'absolute',
   },
@@ -606,7 +589,6 @@ const styles = StyleSheet.create({
   },
   controlsText: {
     fontSize: 14,
-    color: '#8f7a66',
     textAlign: 'center',
   },
 });

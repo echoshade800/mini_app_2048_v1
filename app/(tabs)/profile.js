@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { useGame } from '../../contexts/GameContext';
+import { getTheme } from '../../utils/ThemeUtils';
 
 /**
  * Profile & Settings Screen
@@ -22,6 +23,7 @@ import { useGame } from '../../contexts/GameContext';
  */
 export default function ProfileScreen() {
   const { state, dispatch, saveGameData } = useGame();
+  const theme = getTheme(state.effectiveTheme);
 
   const updateSetting = async (key, value) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: { [key]: value } });
@@ -83,18 +85,18 @@ export default function ProfileScreen() {
   const recentGames = state.gameHistory.slice(0, 5);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Profile & Settings</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Profile & Settings</Text>
         </View>
 
         {/* User Info */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="person-circle" size={24} color="#667eea" />
-            <Text style={styles.sectionTitle}>Info</Text>
+            <Ionicons name="person-circle" size={24} color={theme.primary} />
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Info</Text>
           </View>
           
           <View style={styles.userInfo}>
@@ -102,59 +104,59 @@ export default function ProfileScreen() {
               <Text style={styles.avatarText}>{state.nickname.charAt(0).toUpperCase()}</Text>
             </View>
             <View style={styles.userDetails}>
-              <Text style={styles.nickname}>{state.nickname}</Text>
-              <Text style={styles.uid}>ID: {state.uid || 'Local Player'}</Text>
+              <Text style={[styles.nickname, { color: theme.textPrimary }]}>{state.nickname}</Text>
+              <Text style={[styles.uid, { color: theme.textSecondary }]}>ID: {state.uid || 'Local Player'}</Text>
             </View>
           </View>
         </View>
 
         {/* Statistics */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
           <View style={styles.sectionHeader}>
             <Ionicons name="trophy" size={24} color="#ffd89b" />
-            <Text style={styles.sectionTitle}>Best Statistics</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Best Statistics</Text>
           </View>
           
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{state.maxLevel || 0}</Text>
-              <Text style={styles.statLabel}>Highest Tile</Text>
+              <Text style={[styles.statValue, { color: theme.textPrimary }]}>{state.maxLevel || 0}</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Highest Tile</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{state.maxScore || 0}</Text>
-              <Text style={styles.statLabel}>Best Score</Text>
+              <Text style={[styles.statValue, { color: theme.textPrimary }]}>{state.maxScore || 0}</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Best Score</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>
+              <Text style={[styles.statValue, { color: theme.textPrimary }]}>
                 {state.maxTime ? `${state.maxTime}s` : '--'}
               </Text>
-              <Text style={styles.statLabel}>Fastest Win</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Fastest Win</Text>
             </View>
           </View>
         </View>
 
         {/* Recent Games */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
           <View style={styles.sectionHeader}>
             <Ionicons name="time" size={24} color="#f093fb" />
-            <Text style={styles.sectionTitle}>Recent Games</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Recent Games</Text>
             <TouchableOpacity onPress={() => router.push('/history')}>
-              <Text style={styles.viewAllLink}>View All</Text>
+              <Text style={[styles.viewAllLink, { color: theme.primary }]}>View All</Text>
             </TouchableOpacity>
           </View>
           
           {recentGames.length === 0 ? (
-            <Text style={styles.emptyText}>No games played yet</Text>
+            <Text style={[styles.emptyText, { color: theme.textTertiary }]}>No games played yet</Text>
           ) : (
             recentGames.map((game, index) => (
               <TouchableOpacity
                 key={game.id}
-                style={styles.gameItem}
+                style={[styles.gameItem, { borderBottomColor: theme.borderLight }]}
                 onPress={() => router.push(`/details/${game.id}`)}
               >
                 <View style={styles.gameInfo}>
-                  <Text style={styles.gameScore}>{game.finalScore}</Text>
-                  <Text style={styles.gameDetails}>
+                  <Text style={[styles.gameScore, { color: theme.textPrimary }]}>{game.finalScore}</Text>
+                  <Text style={[styles.gameDetails, { color: theme.textSecondary }]}>
                     Tile: {game.highestTile} • {game.durationSec}s • {game.moves} moves
                   </Text>
                 </View>
@@ -171,44 +173,44 @@ export default function ProfileScreen() {
         </View>
 
         {/* Settings */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
           <View style={styles.sectionHeader}>
             <Ionicons name="settings" size={24} color="#8b5cf6" />
-            <Text style={styles.sectionTitle}>Preferences</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Preferences</Text>
           </View>
 
           {/* Sound Settings */}
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Sound Effects</Text>
-              <Text style={styles.settingDescription}>Play sounds for moves and merges</Text>
+              <Text style={[styles.settingLabel, { color: theme.textPrimary }]}>Sound Effects</Text>
+              <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>Play sounds for moves and merges</Text>
             </View>
             <Switch
               value={state.soundOn}
               onValueChange={(value) => updateSetting('soundOn', value)}
-              trackColor={{ false: '#e2e8f0', true: '#667eea' }}
-              thumbColor={state.soundOn ? '#ffffff' : '#cbd5e0'}
+              trackColor={{ false: theme.border, true: theme.primary }}
+              thumbColor={state.soundOn ? '#ffffff' : theme.textTertiary}
             />
           </View>
 
           {/* Volume Slider */}
           {state.soundOn && (
             <View style={styles.settingItem}>
-              <Text style={styles.settingLabel}>Volume</Text>
+              <Text style={[styles.settingLabel, { color: theme.textPrimary }]}>Volume</Text>
               <View style={styles.sliderContainer}>
-                <Ionicons name="volume-low" size={20} color="#94a3b8" />
+                <Ionicons name="volume-low" size={20} color={theme.textTertiary} />
                 <Slider
                   style={styles.slider}
                   minimumValue={0}
                   maximumValue={100}
                   value={state.volume}
                   onValueChange={(value) => updateSetting('volume', Math.round(value))}
-                  minimumTrackTintColor="#667eea"
-                  maximumTrackTintColor="#e2e8f0"
-                  thumbStyle={{ backgroundColor: '#667eea' }}
+                  minimumTrackTintColor={theme.primary}
+                  maximumTrackTintColor={theme.border}
+                  thumbStyle={{ backgroundColor: theme.primary }}
                 />
-                <Ionicons name="volume-high" size={20} color="#94a3b8" />
-                <Text style={styles.volumeValue}>{state.volume}</Text>
+                <Ionicons name="volume-high" size={20} color={theme.textTertiary} />
+                <Text style={[styles.volumeValue, { color: theme.textPrimary }]}>{state.volume}</Text>
               </View>
             </View>
           )}
@@ -217,35 +219,38 @@ export default function ProfileScreen() {
           {Platform.OS !== 'web' && (
             <View style={styles.settingItem}>
               <View style={styles.settingInfo}>
-                <Text style={styles.settingLabel}>Haptic Feedback</Text>
-                <Text style={styles.settingDescription}>Vibrate on moves and merges</Text>
+                <Text style={[styles.settingLabel, { color: theme.textPrimary }]}>Haptic Feedback</Text>
+                <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>Vibrate on moves and merges</Text>
               </View>
               <Switch
                 value={state.hapticsOn}
                 onValueChange={(value) => updateSetting('hapticsOn', value)}
-                trackColor={{ false: '#e2e8f0', true: '#667eea' }}
-                thumbColor={state.hapticsOn ? '#ffffff' : '#cbd5e0'}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={state.hapticsOn ? '#ffffff' : theme.textTertiary}
               />
             </View>
           )}
 
           {/* Theme Selection */}
           <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>Theme</Text>
+            <Text style={[styles.settingLabel, { color: theme.textPrimary }]}>Theme</Text>
             <View style={styles.themeSelector}>
               {['Light', 'Dark', 'System'].map((theme) => (
                 <TouchableOpacity
                   key={theme}
                   style={[
                     styles.themeOption,
-                    { backgroundColor: state.theme === theme.toLowerCase() ? '#667eea' : '#f8fafc' }
+                    { 
+                      backgroundColor: state.theme === theme.toLowerCase() ? theme.primary : theme.surfaceSecondary,
+                      borderColor: theme.border
+                    }
                   ]}
                   onPress={() => updateSetting('theme', theme.toLowerCase())}
                 >
                   <Text
                     style={[
                       styles.themeOptionText,
-                      { color: state.theme === theme.toLowerCase() ? '#ffffff' : '#64748b' }
+                      { color: state.theme === theme.toLowerCase() ? '#ffffff' : theme.textSecondary }
                     ]}
                   >
                     {theme}
@@ -257,46 +262,46 @@ export default function ProfileScreen() {
         </View>
 
         {/* Developer Tools */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
           <View style={styles.sectionHeader}>
             <Ionicons name="code" size={24} color="#06b6d4" />
-            <Text style={styles.sectionTitle}>Developer Tools</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Developer Tools</Text>
           </View>
 
-          <TouchableOpacity style={styles.actionButton} onPress={exportData}>
-            <Ionicons name="download" size={20} color="#667eea" />
-            <Text style={styles.actionButtonText}>Export Data (JSON)</Text>
+          <TouchableOpacity style={[styles.actionButton, { borderColor: theme.border }]} onPress={exportData}>
+            <Ionicons name="download" size={20} color={theme.primary} />
+            <Text style={[styles.actionButtonText, { color: theme.primary }]}>Export Data (JSON)</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton} onPress={resetLocalBest}>
+          <TouchableOpacity style={[styles.actionButton, { borderColor: theme.border }]} onPress={resetLocalBest}>
             <Ionicons name="refresh" size={20} color="#ef4444" />
             <Text style={[styles.actionButtonText, { color: '#ef4444' }]}>Reset Local Best</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton} onPress={forceResync}>
+          <TouchableOpacity style={[styles.actionButton, { borderColor: theme.border }]} onPress={forceResync}>
             <Ionicons name="cloud-upload" size={20} color="#10b981" />
             <Text style={[styles.actionButtonText, { color: '#10b981' }]}>Force Resync</Text>
           </TouchableOpacity>
         </View>
 
         {/* Navigation Links */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
           <TouchableOpacity
-            style={styles.navigationButton}
+            style={[styles.navigationButton, { backgroundColor: theme.surfaceSecondary }]}
             onPress={() => router.push('/about')}
           >
-            <Ionicons name="information-circle" size={20} color="#667eea" />
-            <Text style={styles.navigationButtonText}>About & Help</Text>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e0" />
+            <Ionicons name="information-circle" size={20} color={theme.primary} />
+            <Text style={[styles.navigationButtonText, { color: theme.textPrimary }]}>About & Help</Text>
+            <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.navigationButton}
+            style={[styles.navigationButton, { backgroundColor: theme.surfaceSecondary }]}
             onPress={() => router.push('/tutorial')}
           >
-            <Ionicons name="help-circle" size={20} color="#667eea" />
-            <Text style={styles.navigationButtonText}>View Tutorial</Text>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e0" />
+            <Ionicons name="help-circle" size={20} color={theme.primary} />
+            <Text style={[styles.navigationButtonText, { color: theme.textPrimary }]}>View Tutorial</Text>
+            <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -307,7 +312,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   content: {
     padding: 20,
@@ -318,11 +322,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1e293b',
     textAlign: 'center',
   },
   section: {
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -340,13 +342,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1e293b',
     marginLeft: 8,
     flex: 1,
   },
   viewAllLink: {
     fontSize: 14,
-    color: '#667eea',
     fontWeight: '500',
   },
   userInfo: {
@@ -373,12 +373,10 @@ const styles = StyleSheet.create({
   nickname: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1e293b',
     marginBottom: 4,
   },
   uid: {
     fontSize: 14,
-    color: '#64748b',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -391,17 +389,14 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1e293b',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#64748b',
     textAlign: 'center',
   },
   emptyText: {
     fontSize: 14,
-    color: '#94a3b8',
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -410,7 +405,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
   },
   gameInfo: {
     flex: 1,
@@ -418,12 +412,10 @@ const styles = StyleSheet.create({
   gameScore: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1e293b',
     marginBottom: 4,
   },
   gameDetails: {
     fontSize: 14,
-    color: '#64748b',
   },
   gameStatus: {
     width: 32,
@@ -443,12 +435,10 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1e293b',
     marginBottom: 4,
   },
   settingDescription: {
     fontSize: 14,
-    color: '#64748b',
   },
   sliderContainer: {
     flexDirection: 'row',
@@ -463,7 +453,6 @@ const styles = StyleSheet.create({
   volumeValue: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#1e293b',
     marginLeft: 8,
     minWidth: 30,
     textAlign: 'center',
@@ -479,7 +468,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginHorizontal: 4,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
   },
   themeOptionText: {
     textAlign: 'center',
@@ -493,13 +481,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
     marginBottom: 12,
   },
   actionButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#667eea',
     marginLeft: 8,
   },
   navigationButton: {
@@ -508,13 +494,11 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderRadius: 12,
-    backgroundColor: '#f8fafc',
     marginBottom: 8,
   },
   navigationButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1e293b',
     marginLeft: 8,
     flex: 1,
   },
