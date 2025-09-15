@@ -228,32 +228,6 @@ export default function ProfileScreen() {
               />
             </View>
           )}
-
-          {/* Theme Selection */}
-          <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>Theme</Text>
-            <View style={styles.themeSelector}>
-              {['Light', 'Dark', 'System'].map((theme) => (
-                <TouchableOpacity
-                  key={theme}
-                  style={[
-                    styles.themeOption,
-                    { backgroundColor: state.theme === theme.toLowerCase() ? '#667eea' : '#f8fafc' }
-                  ]}
-                  onPress={() => updateSetting('theme', theme.toLowerCase())}
-                >
-                  <Text
-                    style={[
-                      styles.themeOptionText,
-                      { color: state.theme === theme.toLowerCase() ? '#ffffff' : '#64748b' }
-                    ]}
-                  >
-                    {theme}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
         </View>
 
         {/* Developer Tools */}
