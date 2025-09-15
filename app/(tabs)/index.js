@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -38,6 +39,12 @@ export default function HomeScreen() {
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
   const animatedValues = useRef({});
+
+  // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
+  const isAnimatingRef = useRef(state.isAnimating);
+  useEffect(() => {
+    isAnimatingRef.current = state.isAnimating;
+  }, [state.isAnimating]);
 
   // Initialize animations for each tile position
   useEffect(() => {
@@ -99,45 +106,6 @@ export default function HomeScreen() {
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [state.isAnimating, state.board]);
 
-  // Pan responder for gestures
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !state.isAnimating,
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to gestures if not animating and movement is significant
-        const { dx, dy } = gestureState;
-        return !state.isAnimating && (Math.abs(dx) > 10 || Math.abs(dy) > 10);
-      },
-      onPanResponderGrant: () => {
-        // Gesture has started
-      },
-      onPanResponderMove: () => {
-        // Handle move if needed
-      },
-
-      onPanResponderRelease: (event, gestureState) => {
-        if (state.isAnimating) return;
-
-        const { dx, dy } = gestureState;
-        const threshold = 20;
-
-        if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
-
-        let direction;
-        if (Math.abs(dx) > Math.abs(dy)) {
-          direction = dx > 0 ? 'right' : 'left';
-        } else {
-          direction = dy > 0 ? 'down' : 'up';
-        }
-
-        handleMove(direction);
-      },
-      onPanResponderTerminate: () => {
-        // Handle gesture termination
-      },
-    })
-  ).current;
-
   const startNewGame = () => {
     const newBoard = initializeBoard();
     const gameData = {
@@ -154,7 +122,7 @@ export default function HomeScreen() {
     animateNewTiles(newBoard);
   };
 
-  const handleMove = async (direction) => {
+  const handleMove = useCallback(async (direction) => {
     if (state.gameState !== 'playing' || state.isAnimating) return;
 
     const result = move(state.board, direction);
@@ -224,7 +192,41 @@ export default function HomeScreen() {
     }
 
     dispatch({ type: 'SET_ANIMATING', payload: false });
-  };
+  }, [state.gameState, state.isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
+
+  // 用 useMemo 重建 PanResponder，避免旧值问题
+  const panResponder = useMemo(() => PanResponder.create({
+    // 尝试尽早接管（动画时不接管）
+    onStartShouldSetPanResponder: () => !isAnimatingRef.current,
+    onMoveShouldSetPanResponder: (_evt, g) => {
+      if (isAnimatingRef.current) return false;
+      const { dx, dy } = g;
+      const THRESHOLD = 20; // 统一阈值
+      return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
+    },
+    // 有子元素（按钮/文字）时，capture 有助于父级接管
+    onStartShouldSetPanResponderCapture: () => !isAnimatingRef.current,
+    onMoveShouldSetPanResponderCapture: (_evt, g) => {
+      if (isAnimatingRef.current) return false;
+      const { dx, dy } = g;
+      const THRESHOLD = 20;
+      return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
+    },
+    onPanResponderRelease: (_evt, g) => {
+      if (isAnimatingRef.current) return;
+      const { dx, dy } = g;
+      const THRESHOLD = 20;
+
+      if (Math.abs(dx) < THRESHOLD && Math.abs(dy) < THRESHOLD) return;
+
+      const dir = Math.abs(dx) >= Math.abs(dy)
+        ? (dx > 0 ? 'right' : 'left')
+        : (dy > 0 ? 'down' : 'up');
+
+      handleMove(dir);
+    },
+    onShouldBlockNativeResponder: () => true,
+  }), [handleMove]); // 只依赖稳定的 handleMove
 
   const animateMerges = () => {
     return new Promise(resolve => {
@@ -415,12 +417,7 @@ export default function HomeScreen() {
       </View>
 
       {/* Game Board */}
-      <View 
-        style={styles.gameContainer}
-        pointerEvents="box-only"
-        collapsable={false}
-        {...panResponder.panHandlers}
-      >
+      <View style={styles.gameContainer}>
         <View style={styles.instructions}>
           <Text style={styles.instructionsText}>
             Join the tiles, get to 2048!
@@ -430,53 +427,65 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <Animated.View
-          style={[
-            styles.board, 
-            { 
-              width: BOARD_SIZE, 
-              height: BOARD_SIZE,
-              transform: [{ translateX: animatedValues.current.board }]
-            }
-          ]}
-        >
-          {/* Background grid */}
-          {Array.from({ length: 16 }).map((_, index) => (
-            <View key={index} style={[styles.gridCell, { width: TILE_SIZE, height: TILE_SIZE }]} />
-          ))}
+        <View style={{ position: 'relative' }}>
+          {/* 手势层：只覆盖棋盘区域 */}
+          <View
+            style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, zIndex: 10 }}
+            pointerEvents="box-only"
+            collapsable={false}
+            {...panResponder.panHandlers}
+          />
+          {/* 棋盘本体 */}
+          <Animated.View
+            style={[
+              styles.board,
+              { 
+                width: BOARD_SIZE, 
+                height: BOARD_SIZE,
+                transform: [{ translateX: animatedValues.current.board || new Animated.Value(0) }]
+              }
+            ]}
+          >
+            {/* Background grid */}
+            {Array.from({ length: 16 }).map((_, index) => {
+              const left = (index % 4) * (TILE_SIZE + 10) + 10;
+              const top = Math.floor(index / 4) * (TILE_SIZE + 10) + 10;
+              return <View key={index} style={[styles.gridCell, { width: TILE_SIZE, height: TILE_SIZE, left, top }]} />;
+            })}
 
-          {/* Game tiles */}
-          {state.board.map((row, rowIndex) =>
-            row.map((value, colIndex) => {
-              if (!value) return null;
+            {/* Game tiles */}
+            {state.board.map((row, rowIndex) =>
+              row.map((value, colIndex) => {
+                if (!value) return null;
 
-              const key = `${rowIndex}-${colIndex}`;
-              const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
+                const key = `${rowIndex}-${colIndex}`;
+                const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
 
-              return (
-                <Animated.View
-                  key={key}
-                  style={[
-                    styles.tile,
-                    getTileStyle(value),
-                    {
-                      width: TILE_SIZE,
-                      height: TILE_SIZE,
-                      left: colIndex * (TILE_SIZE + 10) + 10,
-                      top: rowIndex * (TILE_SIZE + 10) + 10,
-                      transform: [{ scale: anim.scale }],
-                      opacity: anim.opacity,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.tileText, { fontSize: value > 512 ? 24 : 32 }]}>
-                    {value}
-                  </Text>
-                </Animated.View>
-              );
-            })
-          )}
-        </Animated.View>
+                return (
+                  <Animated.View
+                    key={key}
+                    style={[
+                      styles.tile,
+                      getTileStyle(value),
+                      {
+                        width: TILE_SIZE,
+                        height: TILE_SIZE,
+                        left: colIndex * (TILE_SIZE + 10) + 10,
+                        top: rowIndex * (TILE_SIZE + 10) + 10,
+                        transform: [{ scale: anim.scale }],
+                        opacity: anim.opacity,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.tileText, { fontSize: value > 512 ? 24 : 32 }]}>
+                      {value}
+                    </Text>
+                  </Animated.View>
+                );
+              })
+            )}
+          </Animated.View>
+        </View>
 
         {/* Game instructions for mobile */}
         <View style={styles.controls}>
@@ -576,8 +585,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#cdc1b4',
     borderRadius: 6,
     position: 'absolute',
-    left: (index) => (index % 4) * (TILE_SIZE + 10) + 10,
-    top: (index) => Math.floor(index / 4) * (TILE_SIZE + 10) + 10,
   },
   tile: {
     borderRadius: 6,
