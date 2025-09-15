@@ -232,6 +232,32 @@ export default function HomeScreen() {
     return mergeTargets;
   };
 
+  // 对合并落点做放大回弹；默认每段 100ms（0.1s）
+  const animateMergeBounce = (mergeTargets, up = 1.12, dur = 100) => {
+    return new Promise(resolve => {
+      if (!mergeTargets || mergeTargets.length === 0) return resolve();
+      const anims = [];
+
+      for (const { r, c } of mergeTargets) {
+        const key = `${r}-${c}`;
+        const av = animatedValues.current[key];
+        if (!av) continue;
+
+        // 先重置，避免前一次动画遗留
+        av.scale.setValue(1);
+
+        anims.push(
+          Animated.sequence([
+            Animated.timing(av.scale, { toValue: up, duration: dur, useNativeDriver: true }),
+            Animated.timing(av.scale, { toValue: 1,  duration: dur, useNativeDriver: true }),
+          ])
+        );
+      }
+
+      Animated.parallel(anims).start(() => resolve());
+    });
+  };
+
   const startNewGame = () => {
     const newBoard = initializeBoard();
     const gameData = {
