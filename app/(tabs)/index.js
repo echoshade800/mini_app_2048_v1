@@ -299,14 +299,16 @@ export default function HomeScreen() {
       // 5) Animate merges (bounce effect)
       await animateMerges();
 
-      // 6) Add new tile and animate it
+      // 6) Add new tile
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
-      animateNewTiles(boardWithNewTile);
+      
+      // 7) Animate only the truly new tile
+      animateNewTiles(result.board, boardWithNewTile);
 
       setMoveCount(prev => prev + 1);
 
-      // 7) Check win/lose conditions
+      // 8) Check win/lose conditions
       if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
         dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
         showWinModal();
@@ -387,12 +389,14 @@ export default function HomeScreen() {
     });
   };
 
-  const animateNewTiles = (board) => {
+  const animateNewTiles = (prevBoard, nextBoard) => {
     // Find new tiles and animate them
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 4; col++) {
-        if (board[row][col] && !state.board[row][col]) {
-          const key = `${row}-${col}`;
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const wasEmpty = !prevBoard[r][c];
+        const nowHas   = !!nextBoard[r][c];
+        if (wasEmpty && nowHas) {
+          const key = `${r}-${c}`;
           const anim = animatedValues.current[key];
           
           if (anim) {
