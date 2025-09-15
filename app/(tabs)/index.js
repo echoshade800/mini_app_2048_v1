@@ -415,7 +415,12 @@ export default function HomeScreen() {
       </View>
 
       {/* Game Board */}
-      <View style={styles.gameContainer}>
+      <View 
+        style={styles.gameContainer}
+        pointerEvents="box-only"
+        collapsable={false}
+        {...panResponder.panHandlers}
+      >
         <View style={styles.instructions}>
           <Text style={styles.instructionsText}>
             Join the tiles, get to 2048!
@@ -434,7 +439,6 @@ export default function HomeScreen() {
               transform: [{ translateX: animatedValues.current.board }]
             }
           ]}
-          {...panResponder.panHandlers}
         >
           {/* Background grid */}
           {Array.from({ length: 16 }).map((_, index) => (
