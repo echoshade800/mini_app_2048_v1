@@ -50,8 +50,6 @@ export default function HomeScreen() {
   const [isSliding, setIsSliding] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [mergingPositions, setMergingPositions] = useState(new Set());
-  const [isMerging, setIsMerging] = useState(false);
-  const [mergingPositions, setMergingPositions] = useState(new Set());
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
 
