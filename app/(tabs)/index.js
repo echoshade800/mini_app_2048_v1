@@ -24,15 +24,11 @@ import {
   getHighestTile
 } from '../../utils/GameLogic';
 
-// 动态导入 Haptics，避免 H5 环境报错
-let Haptics = null;
-if (Platform.OS !== 'web') {
-  try {
-    Haptics = require('expo-haptics');
-  } catch (error) {
-    console.log('Haptics not available on this platform');
-  }
-}
+// 使用 Platform.select 避免 H5 环境打包错误
+const Haptics = Platform.select({
+  web: null,
+  default: require('expo-haptics'),
+});
 
 const { width: screenWidth } = Dimensions.get('window');
 // H5 适配：根据平台调整棋盘大小
