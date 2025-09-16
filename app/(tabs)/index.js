@@ -9,6 +9,7 @@ import {
   Platform,
   PanResponder,
   Animated,
+  Easing,
   StatusBar,
   PixelRatio
 } from 'react-native';
@@ -66,7 +67,7 @@ const toY = (row) => cellPosition(row);
 // 统一动画配置
 const ANIMATION_CONFIG = {
   duration: 150, // 统一时长 150ms
-  easing: Animated.bezier(0.25, 0.46, 0.45, 0.94), // ease-out 缓动
+  easing: Easing.bezier(0.25, 0.46, 0.45, 0.94), // ease-out 缓动
   useNativeDriver: true,
 };
 /**
@@ -83,12 +84,21 @@ export default function HomeScreen() {
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
   const animationInProgress = useRef(false);
+  const isMounted = useRef(true);
 
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
   const isAnimatingRef = useRef(isAnimating);
   useEffect(() => {
     isAnimatingRef.current = isAnimating;
   }, [isAnimating]);
+
+  // Track component mount status
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   // Initialize animations for each tile position
   useEffect(() => {
@@ -372,6 +382,8 @@ export default function HomeScreen() {
       ...mergeAnims,
     ]).start(() => {
       // 6. 动画完成后的批量状态更新
+      if (!isMounted.current) return;
+      
       ghostTilesRef.current = [];
       
       // 计算最终棋盘状态
@@ -380,6 +392,8 @@ export default function HomeScreen() {
       
       // 批量提交所有状态更新
       requestAnimationFrame(() => {
+        if (!isMounted.current) return;
+        
         // 批量更新状态
         dispatch({ type: 'SET_BOARD', payload: finalBoard });
         dispatch({ type: 'UPDATE_SCORE', payload: newScore });
@@ -402,6 +416,7 @@ export default function HomeScreen() {
         } else if (checkGameOver(finalBoard)) {
           dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
           endGame(finalBoard, newScore, false).then(() => {
+            if (!isMounted.current) return;
             showLoseModal();
           });
         }
