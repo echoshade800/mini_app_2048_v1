@@ -232,32 +232,6 @@ export default function HomeScreen() {
     return mergeTargets;
   };
 
-  // 对合并落点做放大回弹；默认每段 100ms（0.1s）
-  const animateMergeBounce = (mergeTargets, up = 1.12, dur = 100) => {
-    return new Promise(resolve => {
-      if (!mergeTargets || mergeTargets.length === 0) return resolve();
-      const anims = [];
-
-      for (const { r, c } of mergeTargets) {
-        const key = `${r}-${c}`;
-        const av = animatedValues.current[key];
-        if (!av) continue;
-
-        // 先重置，避免前一次动画遗留
-        av.scale.setValue(1);
-
-        anims.push(
-          Animated.sequence([
-            Animated.timing(av.scale, { toValue: up, duration: dur, useNativeDriver: true }),
-            Animated.timing(av.scale, { toValue: 1,  duration: dur, useNativeDriver: true }),
-          ])
-        );
-      }
-
-      Animated.parallel(anims).start(() => resolve());
-    });
-  };
-
   const startNewGame = () => {
     const newBoard = initializeBoard();
     const gameData = {
@@ -348,11 +322,11 @@ export default function HomeScreen() {
     );
 
     Animated.parallel(slideAnims).start(async () => {
-      // 1) 计算本次"合并落点"——仅 UI 用
-      const mergeTargets = computeMergeTargets(prev, direction);
-
-      // 2) 提交"合并后的棋盘"（尚未生成新砖）
+      // Commit new board after sliding
       dispatch({ type: 'SET_BOARD', payload: result.board });
+      
+      // 计算合并目标位置
+      const mergeTargets = computeMergeTargets(prev, direction);
       
       // 设置合并状态，隐藏合并位置的瓦片
       if (mergeTargets.length > 0) {
@@ -361,14 +335,14 @@ export default function HomeScreen() {
         setIsMerging(true);
       }
 
+      // 只对合并位置做弹跳动画
+      await animateMergeBounce(mergeTargets);
+      
       // 清除合并状态
       setIsMerging(false);
       setMergingPositions(new Set());
 
-      // 3) 只对"合并落点"弹跳（每段 0.1s）
-      await animateMergeBounce(mergeTargets, 1.12, 100);
-
-      // 4) 生成新砖 & 只对"新增格子"弹入（沿用你已做好的 prev/next 对比）
+      // Add new tile and animate only the new tile
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
@@ -380,7 +354,6 @@ export default function HomeScreen() {
 
       setMoveCount(prev => prev + 1);
 
-      // 5) 计分、胜负判定、haptics 等（保持你的原有顺序）
       // Check win condition
       if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
         dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
@@ -431,6 +404,40 @@ export default function HomeScreen() {
     },
     onShouldBlockNativeResponder: () => true,
   }), [handleMove]); // 只依赖稳定的 handleMove
+
+  // 只对合并位置做弹跳动画
+  const animateMergeBounce = (mergeTargets) => {
+    return new Promise(resolve => {
+      if (!mergeTargets || mergeTargets.length === 0) {
+        return resolve();
+      }
+
+      const animations = [];
+      for (const { r, c } of mergeTargets) {
+        const key = `${r}-${c}`;
+        const anim = animatedValues.current[key];
+        
+        if (anim) {
+          animations.push(
+            Animated.sequence([
+              Animated.timing(anim.scale, {
+                toValue: 1.12,
+                duration: 100,
+                useNativeDriver: true,
+              }),
+              Animated.timing(anim.scale, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+              }),
+            ])
+          );
+        }
+      }
+      
+      Animated.parallel(animations).start(() => resolve());
+    });
+  };
 
   const animateNewTiles = (prevBoard, nextBoard) => {
     // Find new tiles and animate them
