@@ -289,42 +289,68 @@ export default function HomeScreen() {
         Animated.timing(animatedValues.current.board, { 
           toValue: 10, 
           duration: 50, 
-          useNativeDriver: true 
+          useNativeDriver: true
         }),
         Animated.timing(animatedValues.current.board, { 
           toValue: -10, 
           duration: 50, 
-          useNativeDriver: true 
+          useNativeDriver: true
         }),
         Animated.timing(animatedValues.current.board, { 
           toValue: 0, 
           duration: 50, 
-          useNativeDriver: true 
+          useNativeDriver: true
         }),
       ]).start();
       
       return;
     }
 
-    // 1. 准备幽灵瓦片和合并数据
+    // 1. 设置动画状态，防止重复触发
+    setAnimationPhase('animating');
+    dispatch({ type: 'SET_ANIMATING', payload: true });
+
+    // 2. 准备幽灵瓦片和合并数据
     const transitions = computeTransitionsUIOnly(prev, result.board, direction)
       .filter(t => !(t.from.r === t.to.r && t.from.c === t.to.c));
     
     const mergeTargets = computeMergeTargets(prev, direction);
     
-    // 2. 设置动画状态
-    setAnimationPhase('animating');
-    dispatch({ type: 'SET_ANIMATING', payload: true });
-    
-    // 3. 隐藏将要移动的真实瓦片（只用 opacity）
+    // 3. 移动端优化：预先隐藏真实瓦片，避免闪烁
     const movingPositions = new Set(transitions.map(t => `${t.from.r}-${t.from.c}`));
-    for (const posKey of movingPositions) {
-      const anim = animatedValues.current[posKey];
-      if (anim) {
-        anim.opacity.setValue(0);
+    
+    // 移动端使用渐隐动画，Web端直接设置
+    if (Platform.OS !== 'web') {
+      // 移动端：快速渐隐真实瓦片
+      const hideAnimations = [];
+      for (const posKey of movingPositions) {
+        const anim = animatedValues.current[posKey];
+        if (anim) {
+          hideAnimations.push(
+            Animated.timing(anim.opacity, {
+              toValue: 0,
+              duration: 50, // 快速隐藏
+              useNativeDriver: true,
+            })
+          );
+        }
+      }
+      
+      // 并行执行所有隐藏动画
+      if (hideAnimations.length > 0) {
+        Animated.parallel(hideAnimations).start();
+      }
+    } else {
+      // Web端：直接设置
+      for (const posKey of movingPositions) {
+        const anim = animatedValues.current[posKey];
+        if (anim) {
+          anim.opacity.setValue(0);
+        }
       }
     }
     
+    // 4. 创建幽灵瓦片
     ghostTilesRef.current = transitions.map(t => ({
       key: `${t.from.r}-${t.from.c}`,
       value: prev[t.from.r][t.from.c],
@@ -334,11 +360,13 @@ export default function HomeScreen() {
       scale: new Animated.Value(1),
     }));
 
-    // 4. 更新分数（但不提交棋盘）
+    // 5. 更新分数（但不提交棋盘）
     const newScore = state.score + result.score;
     dispatch({ type: 'UPDATE_SCORE', payload: newScore });
 
-    // 5. 统一时间线动画
+    // 6. 延迟执行主动画，确保隐藏动画完成
+    const executeMainAnimation = () => {
+      // 统一时间线动画
     masterTimeline.current.setValue(0);
     
     const slideAnims = ghostTilesRef.current.map(g => 
@@ -368,56 +396,81 @@ export default function HomeScreen() {
         ])
       );
 
-    // 6. 执行所有动画
-    Animated.parallel([
-      ...slideAnims,
-      ...mergeAnims,
-    ]).start(async () => {
-      // 7. 动画完成后提交棋盘
-      ghostTilesRef.current = [];
-      dispatch({ type: 'SET_BOARD', payload: result.board });
-      
-      // 8. 恢复所有瓦片的透明度（不做缩放）
-      for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 4; col++) {
-          const key = `${row}-${col}`;
-          const anim = animatedValues.current[key];
-          if (anim) {
-            anim.opacity.setValue(1);
-            anim.scale.setValue(1);
+      // 执行所有动画
+      Animated.parallel([
+        ...slideAnims,
+        ...mergeAnims,
+      ]).start(async () => {
+        // 7. 动画完成后提交棋盘
+        ghostTilesRef.current = [];
+        dispatch({ type: 'SET_BOARD', payload: result.board });
+        
+        // 8. 恢复所有瓦片的透明度和缩放
+        const restoreAnimations = [];
+        for (let row = 0; row < 4; row++) {
+          for (let col = 0; col < 4; col++) {
+            const key = `${row}-${col}`;
+            const anim = animatedValues.current[key];
+            if (anim) {
+              if (Platform.OS !== 'web') {
+                // 移动端：渐显动画
+                restoreAnimations.push(
+                  Animated.timing(anim.opacity, {
+                    toValue: 1,
+                    duration: 100,
+                    useNativeDriver: true,
+                  })
+                );
+              } else {
+                // Web端：直接设置
+                anim.opacity.setValue(1);
+              }
+              anim.scale.setValue(1);
+            }
           }
         }
-      }
 
-      // 9. 生成新瓦片并执行出生动画
-      const boardWithNewTile = addRandomTile(result.board);
-      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
-      animateNewTiles(result.board, boardWithNewTile);
-
-      // 10. 重置动画状态
-      setAnimationPhase('idle');
-      dispatch({ type: 'SET_ANIMATING', payload: false });
-
-      setMoveCount(prev => prev + 1);
-
-      // 11. 胜负判定和触觉反馈
-      // Check win condition
-      if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
-        showWinModal();
-      } else if (checkGameOver(boardWithNewTile)) {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-        await endGame(boardWithNewTile, newScore, false);
-        showLoseModal();
-      }
-
-      // Haptic feedback for valid move
-      if (state.hapticsOn && Platform.OS !== 'web') {
-        if (Haptics) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        // 并行执行恢复动画
+        if (restoreAnimations.length > 0) {
+          Animated.parallel(restoreAnimations).start();
         }
-      }
-    });
+
+        // 9. 生成新瓦片并执行出生动画
+        const boardWithNewTile = addRandomTile(result.board);
+        dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
+        animateNewTiles(result.board, boardWithNewTile);
+
+        // 10. 重置动画状态
+        setAnimationPhase('idle');
+        dispatch({ type: 'SET_ANIMATING', payload: false });
+
+        setMoveCount(prev => prev + 1);
+
+        // 11. 胜负判定和触觉反馈
+        if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
+          dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
+          showWinModal();
+        } else if (checkGameOver(boardWithNewTile)) {
+          dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
+          await endGame(boardWithNewTile, newScore, false);
+          showLoseModal();
+        }
+
+        // Haptic feedback for valid move
+        if (state.hapticsOn && Platform.OS !== 'web') {
+          if (Haptics) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+        }
+      });
+    };
+
+    // 移动端延迟执行主动画，Web端立即执行
+    if (Platform.OS !== 'web') {
+      setTimeout(executeMainAnimation, 60); // 等待隐藏动画完成
+    } else {
+      executeMainAnimation();
+    }
   }, [animationPhase, state.gameState, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
   // 用 useMemo 重建 PanResponder，避免旧值问题
@@ -467,19 +520,19 @@ export default function HomeScreen() {
           const anim = animatedValues.current[key];
           
           if (anim) {
-            anim.scale.setValue(0.6); // 从0.6开始，更自然
+            anim.scale.setValue(0.3); // 移动端从更小开始，更明显
             anim.opacity.setValue(0);
             
             Animated.parallel([
               Animated.spring(anim.scale, {
                 toValue: 1,
-                tension: 300,
-                friction: 8,
+                tension: Platform.OS !== 'web' ? 200 : 300, // 移动端更柔和
+                friction: Platform.OS !== 'web' ? 10 : 8,
                 useNativeDriver: true,
               }),
               Animated.timing(anim.opacity, {
                 toValue: 1,
-                duration: 150,
+                duration: Platform.OS !== 'web' ? 200 : 150, // 移动端稍慢
                 useNativeDriver: true,
               }),
             ]).start();
