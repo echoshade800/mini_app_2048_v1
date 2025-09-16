@@ -117,7 +117,6 @@ function updateTilePositions(board) {
           row,
           col
         };
-        return false;
       }
     }
   }
