@@ -246,8 +246,11 @@ export default function HomeScreen() {
       for (let c = 0; c < N; c++) {
         const line = [];
         for (let r = 0; r < N; r++) {
-          const rr = direction === 'up' ? r : (N - 1 - r);
+          const rr = r;
           line.push({ v: prevBoard[rr][c], r: rr, c });
+        }
+        if (direction === 'down') {
+          line.reverse();
         }
         processLine(line, false, c);
       }
