@@ -68,6 +68,7 @@ export default function HomeScreen() {
   const [isSliding, setIsSliding] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [mergingPositions, setMergingPositions] = useState(new Set());
+  const [transitionTiles, setTransitionTiles] = useState(new Map());
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
 
@@ -198,7 +199,7 @@ export default function HomeScreen() {
   };
 
   // 计算合并目标位置
-  const computeMergeTargets = (prevBoard, direction) => {
+  const computeMergeTargets = (prevBoard, nextBoard, direction) => {
     const N = 4;
     const mergeTargets = [];
 
@@ -218,7 +219,11 @@ export default function HomeScreen() {
               ? { r: dest, c: fixedIndex }
               : { r: N - 1 - dest, c: fixedIndex };
           }
-          mergeTargets.push(targetPos);
+          mergeTargets.push({
+            ...targetPos,
+            fromValue: nonEmpty[i].v,
+            toValue: nonEmpty[i].v * 2
+          });
           dest += 1;
           i += 2;
         } else {
@@ -251,12 +256,10 @@ export default function HomeScreen() {
   };
 
   // 对合并落点做放大回弹；默认每段 100ms（0.1s）
-  const animateMergeBounce = (mergeTargets, up = 1.12, dur = 100) => {
+  const animateMergeBounce = (mergeTargets) => {
     return new Promise(resolve => {
       if (!mergeTargets || mergeTargets.length === 0) return resolve();
       
-      // 首先让合并后的瓦片从透明渐变到可见
-      const fadeInAnims = [];
       const bounceAnims = [];
 
       for (const { r, c } of mergeTargets) {
@@ -264,20 +267,11 @@ export default function HomeScreen() {
         const av = animatedValues.current[key];
         if (!av) continue;
 
-        // 重置动画值
+        // 重置动画值 - 瓦片保持可见状态
         av.scale.setValue(1);
-        av.opacity.setValue(0); // 从透明开始
+        av.opacity.setValue(1);
 
-        // 先淡入
-        fadeInAnims.push(
-          Animated.timing(av.opacity, { 
-            toValue: 1, 
-            duration: 80, 
-            useNativeDriver: true 
-          })
-        );
-
-        // 然后放大回弹（放大到1.2倍，覆盖格子边缘）
+        // 放大回弹（放大到1.2倍，覆盖格子边缘）
         bounceAnims.push(
           Animated.sequence([
             Animated.timing(av.scale, { 
@@ -294,11 +288,8 @@ export default function HomeScreen() {
         );
       }
 
-      // 先执行淡入动画
-      Animated.parallel(fadeInAnims).start(() => {
-        // 淡入完成后执行放大回弹动画
-        Animated.parallel(bounceAnims).start(() => resolve());
-      });
+      // 执行放大回弹动画
+      Animated.parallel(bounceAnims).start(() => resolve());
     });
   };
 
