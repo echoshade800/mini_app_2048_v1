@@ -373,30 +373,48 @@ export default function HomeScreen() {
       ...slideAnims,
       ...mergeAnims,
     ]).start(async () => {
-      // 7. 动画完成后提交棋盘
+      // 7. 清理幽灵瓦片
       ghostTilesRef.current = [];
+      
+      // 8. 先提交中间棋盘状态（移动+合并后的结果）
       dispatch({ type: 'SET_BOARD', payload: result.board });
       
-      // 8. 恢复所有瓦片的透明度（不做缩放）
+      // 9. 立即恢复所有瓦片的透明度，确保新棋盘立即可见
+      const restorePromises = [];
       for (let row = 0; row < 4; row++) {
         for (let col = 0; col < 4; col++) {
           const key = `${row}-${col}`;
           const anim = animatedValues.current[key];
           if (anim) {
-            anim.opacity.setValue(1);
+            // 移动端使用快速渐显，Web端直接设置
+            if (Platform.OS !== 'web') {
+              const restoreAnim = Animated.timing(anim.opacity, {
+                toValue: 1,
+                duration: 50,
+                useNativeDriver: true,
+              });
+              restorePromises.push(restoreAnim);
+              restoreAnim.start();
+            } else {
+              anim.opacity.setValue(1);
+            }
             anim.scale.setValue(1);
           }
         }
       }
-
-      // 9. 生成新瓦片并执行出生动画
-      const boardWithNewTile = addRandomTile(result.board);
-      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
-      animateNewTiles(result.board, boardWithNewTile);
-
-      // 10. 重置动画状态
-      setAnimationPhase('idle');
-      dispatch({ type: 'SET_ANIMATING', payload: false });
+      
+      // 10. 等待恢复动画完成后再生成新瓦片
+      const waitTime = Platform.OS !== 'web' ? 60 : 0;
+      setTimeout(() => {
+        // 11. 生成新瓦片并执行出生动画
+        const boardWithNewTile = addRandomTile(result.board);
+        dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
+        animateNewTiles(result.board, boardWithNewTile);
+        
+        // 12. 重置动画状态
+        setAnimationPhase('idle');
+        dispatch({ type: 'SET_ANIMATING', payload: false });
+      }, waitTime);
 
       setMoveCount(prev => prev + 1);
 
