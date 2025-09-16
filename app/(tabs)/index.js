@@ -552,10 +552,10 @@ export default function HomeScreen() {
       if (isAnimatingRef.current) return;
       
       const keyMap = {
-        ArrowLeft: 'left',
-        ArrowRight: 'right',
-        ArrowUp: 'up',
-        ArrowDown: 'down',
+        ArrowLeft: 'up',
+        ArrowRight: 'down', 
+        ArrowUp: 'left',
+        ArrowDown: 'right',
       };
 
       if (keyMap[event.key]) {
