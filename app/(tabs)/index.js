@@ -368,18 +368,17 @@ export default function HomeScreen() {
     );
 
     Animated.parallel(slideAnims).start(async () => {
-      // 1) 计算本次"合并落点"——仅 UI 用
+      // 计算本次合并的落点（UI-only）
       const mergeTargets = computeMergeTargets(prev, direction);
 
       // 2) 提交"合并后的棋盘"（尚未生成新砖）
       dispatch({ type: 'SET_BOARD', payload: result.board });
       
-      // 设置合并状态，隐藏合并位置的瓦片
-      if (mergeTargets.length > 0) {
-        const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
-        setMergingPositions(mergePositionKeys);
-        setIsMerging(true);
-      }
+      // ✅ 在合并落点做 0.1s 放大回弹
+      await animateMergeBounce(mergeTargets);
+      const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
+      setMergingPositions(mergePositionKeys);
+      setIsMerging(true);
 
       // 清除合并状态
       setIsMerging(false);
@@ -388,7 +387,7 @@ export default function HomeScreen() {
       // 3) 只对"合并落点"弹跳（每段 0.1s）
       await animateMergeBounce(mergeTargets, 1.12, 100);
 
-      // 4) 生成新砖 & 只对"新增格子"弹入（沿用你已做好的 prev/next 对比）
+      // 生成新砖并回弹新砖（只对新增格子）
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
@@ -421,38 +420,37 @@ export default function HomeScreen() {
   }, [state.gameState, state.isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
   // 用 useMemo 重建 PanResponder，避免旧值问题
-  const panResponder = useMemo(() => PanResponder.create({
-    // 尝试尽早接管（动画时不接管）
-    onStartShouldSetPanResponder: () => !isAnimatingRef.current,
-    onMoveShouldSetPanResponder: (_evt, g) => {
-      if (isAnimatingRef.current) return false;
-      const { dx, dy } = g;
-      const THRESHOLD = 20; // 统一阈值
-      return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
-    },
-    // 有子元素（按钮/文字）时，capture 有助于父级接管
-    onStartShouldSetPanResponderCapture: () => !isAnimatingRef.current,
-    onMoveShouldSetPanResponderCapture: (_evt, g) => {
-      if (isAnimatingRef.current) return false;
-      const { dx, dy } = g;
-      const THRESHOLD = 20;
-      return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
-    },
-    onPanResponderRelease: (_evt, g) => {
-      if (isAnimatingRef.current) return;
-      const { dx, dy } = g;
-      const THRESHOLD = 20;
-
-      if (Math.abs(dx) < THRESHOLD && Math.abs(dy) < THRESHOLD) return;
-
-      const dir = Math.abs(dx) >= Math.abs(dy)
-        ? (dx > 0 ? 'right' : 'left')
-        : (dy > 0 ? 'down' : 'up');
-
-      handleMove(dir);
-    },
-    onShouldBlockNativeResponder: () => true,
-  }), [handleMove]); // 只依赖稳定的 handleMove
+  const panResponder = useMemo(() => {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        // 开始手势时检查动画状态
+        if (isAnimatingRef.current) return false;
+      },
+      onPanResponderMove: () => {
+        // 移动过程中也检查动画状态
+        if (isAnimatingRef.current) return false;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (isAnimatingRef.current) return;
+        
+        const { dx, dy } = gestureState;
+        const minDistance = 50;
+        
+        if (Math.abs(dx) < minDistance && Math.abs(dy) < minDistance) return;
+        
+        let direction;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          direction = dx > 0 ? 'right' : 'left';
+        } else {
+          direction = dy > 0 ? 'down' : 'up';
+        }
+        
+        handleMove(direction);
+      },
+    });
+  }, [handleMove]);
 
   const animateNewTiles = (prevBoard, nextBoard) => {
     // Find new tiles and animate them
