@@ -368,31 +368,39 @@ export default function HomeScreen() {
     );
 
     Animated.parallel(slideAnims).start(async () => {
-      // 1) 提交"合并后的棋盘"（尚未生成新砖）
+      // 1) 计算本次"合并落点"——仅 UI 用
+      const mergeTargets = computeMergeTargets(prev, direction);
+
+      // 2) 提交"合并后的棋盘"（尚未生成新砖）
       dispatch({ type: 'SET_BOARD', payload: result.board });
       
-      // 2) 等待一帧确保棋盘更新完成
-      await new Promise(resolve => requestAnimationFrame(resolve));
-      
-      // 3) 计算合并落点并执行弹跳动画
-      const mergeTargets = computeMergeTargets(prev, direction);
+      // 设置合并状态，隐藏合并位置的瓦片
       if (mergeTargets.length > 0) {
-        await animateMergeBounce(mergeTargets, 1.12, 100);
+        const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
+        setMergingPositions(mergePositionKeys);
+        setIsMerging(true);
       }
 
-      // 4) 生成新砖并执行弹入动画
+      // 清除合并状态
+      setIsMerging(false);
+      setMergingPositions(new Set());
+
+      // 3) 只对"合并落点"弹跳（每段 0.1s）
+      await animateMergeBounce(mergeTargets, 1.12, 100);
+
+      // 4) 生成新砖 & 只对"新增格子"弹入（沿用你已做好的 prev/next 对比）
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
 
-      // 5) 清理状态
+      // Clear ghost tiles
       ghostTilesRef.current = [];
       setIsSliding(false);
       dispatch({ type: 'SET_ANIMATING', payload: false });
 
       setMoveCount(prev => prev + 1);
 
-      // 6) 胜负判定和反馈
+      // 5) 计分、胜负判定、haptics 等（保持你的原有顺序）
       // Check win condition
       if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
         dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
@@ -664,7 +672,8 @@ export default function HomeScreen() {
                 const key = `${rowIndex}-${colIndex}`;
                 const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
                 const movingOldKey = `${rowIndex}-${colIndex}`;
-                const isHidden = isSliding && ghostTilesRef.current.some(g => g.key === movingOldKey);
+                const isHidden = (isSliding && ghostTilesRef.current.some(g => g.key === movingOldKey)) ||
+                                 (isMerging && mergingPositions.has(movingOldKey));
 
                 return (
                   <Animated.View
