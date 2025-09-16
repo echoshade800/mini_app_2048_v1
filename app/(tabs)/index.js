@@ -254,25 +254,51 @@ export default function HomeScreen() {
   const animateMergeBounce = (mergeTargets, up = 1.12, dur = 100) => {
     return new Promise(resolve => {
       if (!mergeTargets || mergeTargets.length === 0) return resolve();
-      const anims = [];
+      
+      // 首先让合并后的瓦片从透明渐变到可见
+      const fadeInAnims = [];
+      const bounceAnims = [];
 
       for (const { r, c } of mergeTargets) {
         const key = `${r}-${c}`;
         const av = animatedValues.current[key];
         if (!av) continue;
 
-        // 先重置，避免前一次动画遗留
+        // 重置动画值
         av.scale.setValue(1);
+        av.opacity.setValue(0); // 从透明开始
 
-        anims.push(
+        // 先淡入
+        fadeInAnims.push(
+          Animated.timing(av.opacity, { 
+            toValue: 1, 
+            duration: 80, 
+            useNativeDriver: true 
+          })
+        );
+
+        // 然后放大回弹（放大到1.2倍，覆盖格子边缘）
+        bounceAnims.push(
           Animated.sequence([
-            Animated.timing(av.scale, { toValue: up, duration: dur, useNativeDriver: true }),
-            Animated.timing(av.scale, { toValue: 1,  duration: dur, useNativeDriver: true }),
+            Animated.timing(av.scale, { 
+              toValue: 1.2, 
+              duration: 120, 
+              useNativeDriver: true 
+            }),
+            Animated.timing(av.scale, { 
+              toValue: 1, 
+              duration: 120, 
+              useNativeDriver: true 
+            }),
           ])
         );
       }
 
-      Animated.parallel(anims).start(() => resolve());
+      // 先执行淡入动画
+      Animated.parallel(fadeInAnims).start(() => {
+        // 淡入完成后执行放大回弹动画
+        Animated.parallel(bounceAnims).start(() => resolve());
+      });
     });
   };
 
@@ -368,34 +394,40 @@ export default function HomeScreen() {
     );
 
     Animated.parallel(slideAnims).start(async () => {
-      // 1) 计算本次"合并落点"——仅 UI 用
+      // 清除幽灵瓦片和滑动状态
+      ghostTilesRef.current = [];
+      setIsSliding(false);
+      
+      // 计算合并落点
       const mergeTargets = computeMergeTargets(prev, direction);
 
-      // 2) 提交"合并后的棋盘"（尚未生成新砖）
-      dispatch({ type: 'SET_BOARD', payload: result.board });
-      
-      // 设置合并状态，隐藏合并位置的瓦片
+      // 设置合并状态，隐藏即将被合并的位置
       if (mergeTargets.length > 0) {
         const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
         setMergingPositions(mergePositionKeys);
         setIsMerging(true);
       }
 
+      // 提交合并后的棋盘（此时合并位置的瓦片是隐藏的）
+      dispatch({ type: 'SET_BOARD', payload: result.board });
+      
+      // 短暂延迟，确保DOM更新完成
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // 执行合并动画（淡入 + 放大回弹）
+      if (mergeTargets.length > 0) {
+        await animateMergeBounce(mergeTargets, 1.2, 120);
+      }
+
       // 清除合并状态
       setIsMerging(false);
       setMergingPositions(new Set());
 
-      // 3) 只对"合并落点"弹跳（每段 0.1s）
-      await animateMergeBounce(mergeTargets, 1.12, 100);
-
-      // 4) 生成新砖 & 只对"新增格子"弹入（沿用你已做好的 prev/next 对比）
+      // 生成新砖并执行出生动画
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
 
-      // Clear ghost tiles
-      ghostTilesRef.current = [];
-      setIsSliding(false);
       dispatch({ type: 'SET_ANIMATING', payload: false });
 
       setMoveCount(prev => prev + 1);
@@ -463,19 +495,19 @@ export default function HomeScreen() {
           const anim = animatedValues.current[key];
           
           if (anim) {
-            anim.scale.setValue(0);
+            anim.scale.setValue(0.6); // 从0.6开始，更自然
             anim.opacity.setValue(0);
             
             Animated.parallel([
               Animated.spring(anim.scale, {
                 toValue: 1,
-                tension: 200,
-                friction: 10,
+                tension: 300,
+                friction: 8,
                 useNativeDriver: true,
               }),
               Animated.timing(anim.opacity, {
                 toValue: 1,
-                duration: 200,
+                duration: 150,
                 useNativeDriver: true,
               }),
             ]).start();
@@ -671,9 +703,12 @@ export default function HomeScreen() {
 
                 const key = `${rowIndex}-${colIndex}`;
                 const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
-                const movingOldKey = `${rowIndex}-${colIndex}`;
-                const isHidden = (isSliding && ghostTilesRef.current.some(g => g.key === movingOldKey)) ||
-                                 (isMerging && mergingPositions.has(movingOldKey));
+                
+                // 判断是否需要隐藏瓦片
+                const positionKey = `${rowIndex}-${colIndex}`;
+                const isInGhost = isSliding && ghostTilesRef.current.some(g => g.key === positionKey);
+                const isMergeHiding = isMerging && mergingPositions.has(positionKey);
+                const isHidden = isInGhost || isMergeHiding;
 
                 return (
                   <Animated.View
