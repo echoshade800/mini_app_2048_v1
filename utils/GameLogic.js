@@ -3,27 +3,6 @@
  * 包含所有游戏核心逻辑：移动、合并、胜负判断等
  */
 
-// 生成唯一ID的简单实现
-function nanoid() {
-  return Math.random().toString(36).substr(2, 9);
-}
-
-// 把 row 里的数字统一包成对象（只在 move 的最开始调用一次）
-function normalizeRow(row, rowIndex) {
-  return row.map((cell, colIndex) => {
-    if (cell == null || cell === 0) return null;
-    if (typeof cell === 'number') {
-      return {
-        value: cell,
-        row: rowIndex,
-        col: colIndex,
-        tileId: 't_' + nanoid(), // 给"裸数字"补上稳定ID
-      };
-    }
-    return cell; // 已是对象
-  });
-}
-
 // 创建空的4x4棋盘
 export function createEmptyBoard() {
   return Array(4).fill(null).map(() => Array(4).fill(null));
@@ -34,7 +13,7 @@ export function getEmptyPositions(board) {
   const empty = [];
   for (let row = 0; row < 4; row++) {
     for (let col = 0; col < 4; col++) {
-      if (board[row][col] === null || board[row][col] === 0) {
+      if (board[row][col] === null) {
         empty.push({ row, col });
       }
     }
@@ -51,12 +30,7 @@ export function addRandomTile(board) {
   const value = Math.random() < 0.9 ? 2 : 4; // 90% 概率是2，10%概率是4
   
   const newBoard = board.map(row => [...row]);
-  newBoard[randomPos.row][randomPos.col] = {
-    value,
-    row: randomPos.row,
-    col: randomPos.col,
-    tileId: 't_' + nanoid()
-  };
+  newBoard[randomPos.row][randomPos.col] = value;
   return newBoard;
 }
 
@@ -71,25 +45,21 @@ export function initializeBoard() {
 // 向左移动一行的核心逻辑
 function moveRowLeft(row) {
   // 1. 移除空值并紧缩到左侧
-  let filtered = row.filter(tile => tile !== null && tile !== 0);
+  let filtered = row.filter(val => val !== null);
   
   // 2. 合并相邻相同的数字
   let score = 0;
   for (let i = 0; i < filtered.length - 1; i++) {
-    if (filtered[i].value === filtered[i + 1].value) {
-      // 合并时保持第一个瓦片的ID，更新值
-      filtered[i] = {
-        ...filtered[i],
-        value: filtered[i].value * 2
-      };
-      score += filtered[i].value;
+    if (filtered[i] === filtered[i + 1]) {
+      filtered[i] *= 2;
+      score += filtered[i];
       filtered[i + 1] = null;
       i++; // 跳过下一个，防止连锁合并
     }
   }
   
   // 3. 再次移除空值并填充到长度4
-  filtered = filtered.filter(tile => tile !== null);
+  filtered = filtered.filter(val => val !== null);
   while (filtered.length < 4) {
     filtered.push(null);
   }
@@ -111,37 +81,17 @@ function reverseRows(board) {
 function boardsEqual(board1, board2) {
   for (let row = 0; row < 4; row++) {
     for (let col = 0; col < 4; col++) {
-      const tile1 = board1[row][col];
-      const tile2 = board2[row][col];
-      
-      if (tile1 === null && tile2 === null) continue;
-      if (tile1 === null || tile2 === null) return false;
-      if (tile1.value !== tile2.value) return false;
+      if (board1[row][col] !== board2[row][col]) {
+        return false;
+      }
     }
   }
   return true;
 }
 
-// 更新瓦片位置信息
-function updateTilePositions(board) {
-  const newBoard = board.map(row => [...row]);
-  for (let row = 0; row < 4; row++) {
-    for (let col = 0; col < 4; col++) {
-      if (newBoard[row][col]) {
-        newBoard[row][col] = {
-          ...newBoard[row][col],
-          row,
-          col
-        };
-      }
-    }
-  }
-  return newBoard;
-}
-
 // 主要的移动函数
 export function move(board, direction) {
-  let newBoard = board.map((row, r) => normalizeRow(row, r)); // 归一化防御
+  let newBoard = board.map(row => [...row]);
   let totalScore = 0;
   
   switch (direction) {
@@ -189,9 +139,6 @@ export function move(board, direction) {
       break;
   }
   
-  // 更新所有瓦片的位置信息
-  newBoard = updateTilePositions(newBoard);
-  
   // 检查移动是否有效（棋盘是否发生变化）
   const isValidMove = !boardsEqual(board, newBoard);
   
@@ -206,7 +153,7 @@ export function move(board, direction) {
 export function checkWin(board) {
   for (let row = 0; row < 4; row++) {
     for (let col = 0; col < 4; col++) {
-      if (board[row][col] && board[row][col].value === 2048) {
+      if (board[row][col] === 2048) {
         return true;
       }
     }
@@ -238,8 +185,8 @@ export function getHighestTile(board) {
   let highest = 0;
   for (let row = 0; row < 4; row++) {
     for (let col = 0; col < 4; col++) {
-      if (board[row][col] && board[row][col].value > highest) {
-        highest = board[row][col].value;
+      if (board[row][col] && board[row][col] > highest) {
+        highest = board[row][col];
       }
     }
   }
