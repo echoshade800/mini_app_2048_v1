@@ -134,6 +134,33 @@ export default function HomeScreen() {
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [state.isAnimating, state.board]);
 
+  // Animate new tiles appearing on the board
+  const animateNewTiles = (prevBoard, newBoard) => {
+    // Find new tiles by comparing boards
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) {
+        const prevValue = prevBoard[row][col];
+        const newValue = newBoard[row][col];
+        
+        // If there's a new tile (was null, now has value)
+        if (prevValue === null && newValue !== null) {
+          const key = `${row}-${col}`;
+          const anim = animatedValues.current[key];
+          
+          if (anim) {
+            // Start from small scale and animate to normal size
+            anim.scale.setValue(0.6);
+            Animated.timing(anim.scale, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }).start();
+          }
+        }
+      }
+    }
+  };
+
   // Compute UI transitions for sliding animation
   const computeTransitionsUIOnly = (prevBoard, nextBoard, direction) => {
     const moves = [];
