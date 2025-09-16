@@ -52,82 +52,6 @@ const cellPosition = (x) => {
   return GRID_SPACING + x * (TILE_SIZE + GRID_SPACING);
 };
 
-// Separate component for transition tiles to avoid Rules of Hooks violation
-const AnimatedTransitionTile = ({ transition }) => {
-  const [currentValue, setCurrentValue] = React.useState(transition.fromValue);
-  const [opacity] = React.useState(new Animated.Value(0));
-  const [scale] = React.useState(new Animated.Value(0.8));
-  
-  React.useEffect(() => {
-    // 淡入动画
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scale, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    
-    // 100ms后切换数字
-    setTimeout(() => {
-      setCurrentValue(transition.toValue);
-    }, 100);
-  }, []);
-  
-  const getTileStyle = (value) => {
-    // Original 2048 color scheme
-    const tileColors = {
-      2: { backgroundColor: '#eee4da', color: '#776e65' },
-      4: { backgroundColor: '#ede0c8', color: '#776e65' },
-      8: { backgroundColor: '#f2b179', color: '#f9f6f2' },
-      16: { backgroundColor: '#f59563', color: '#f9f6f2' },
-      32: { backgroundColor: '#f67c5f', color: '#f9f6f2' },
-      64: { backgroundColor: '#f65e3b', color: '#f9f6f2' },
-      128: { backgroundColor: '#edcf72', color: '#f9f6f2', fontSize: 45 },
-      256: { backgroundColor: '#edcc61', color: '#f9f6f2', fontSize: 45 },
-      512: { backgroundColor: '#edc850', color: '#f9f6f2', fontSize: 45 },
-      1024: { backgroundColor: '#edc53f', color: '#f9f6f2', fontSize: 35 },
-      2048: { backgroundColor: '#edc22e', color: '#f9f6f2', fontSize: 35 },
-      4096: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
-      8192: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
-    };
-
-    const tileClass = tileColors[value] || { 
-      backgroundColor: '#3c3a32', 
-      color: '#f9f6f2', 
-      fontSize: 30 
-    };
-    
-    return tileClass;
-  };
-  
-  return (
-    <Animated.View
-      style={[
-        styles.tile,
-        getTileStyle(currentValue),
-        {
-          width: TILE_SIZE,
-          height: TILE_SIZE,
-          left: toX(transition.c),
-          top: toY(transition.r),
-          opacity,
-          transform: [{ scale }],
-        },
-      ]}
-    >
-      <Text style={[styles.tileText, { fontSize: currentValue > 512 ? 24 : 32 }]}>
-        {currentValue}
-      </Text>
-    </Animated.View>
-  );
-};
-
 // Helper functions for tile positioning
 const toX = (col) => cellPosition(col);
 const toY = (row) => cellPosition(row);
@@ -141,8 +65,9 @@ export default function HomeScreen() {
   const { state, dispatch, saveGameData } = useGame();
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
-  const [animationState, setAnimationState] = useState('idle'); // 'idle', 'sliding', 'transitioning'
-  const [transitionTiles, setTransitionTiles] = useState([]);
+  const [isSliding, setIsSliding] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergingPositions, setMergingPositions] = useState(new Set());
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
 
@@ -213,7 +138,7 @@ export default function HomeScreen() {
   }, [state.isAnimating, state.board]);
 
   // Compute UI transitions for sliding animation
-  const computeSlideTransitions = (prevBoard, direction) => {
+  const computeTransitionsUIOnly = (prevBoard, nextBoard, direction) => {
     const moves = [];
     const N = 4;
 
@@ -272,17 +197,17 @@ export default function HomeScreen() {
     return moves;
   };
 
-  // 计算合并过渡信息
-  const computeMergeTransitions = (prevBoard, direction) => {
+  // 计算合并目标位置
+  const computeMergeTargets = (prevBoard, direction) => {
     const N = 4;
-    const mergeTransitions = [];
+    const mergeTargets = [];
 
     const processLine = (cells, isRow, fixedIndex) => {
       const nonEmpty = cells.filter(x => x.v != null);
       let i = 0, dest = 0;
       while (i < nonEmpty.length) {
         if (i + 1 < nonEmpty.length && nonEmpty[i].v === nonEmpty[i + 1].v) {
-          // 合并发生
+          // 合并发生，计算目标位置
           let targetPos;
           if (isRow) {
             targetPos = direction === 'left' 
@@ -293,12 +218,7 @@ export default function HomeScreen() {
               ? { r: dest, c: fixedIndex }
               : { r: N - 1 - dest, c: fixedIndex };
           }
-          mergeTransitions.push({
-            ...targetPos,
-            fromValue: nonEmpty[i].v,
-            toValue: nonEmpty[i].v * 2,
-            id: `merge-${targetPos.r}-${targetPos.c}-${Date.now()}`
-          });
+          mergeTargets.push(targetPos);
           dest += 1;
           i += 2;
         } else {
@@ -321,52 +241,64 @@ export default function HomeScreen() {
       for (let c = 0; c < N; c++) {
         const line = [];
         for (let r = 0; r < N; r++) {
-          line.push({ v: prevBoard[r][c], r, c });
+          const rr = direction === 'up' ? r : (N - 1 - r);
+          line.push({ v: prevBoard[rr][c], r: rr, c });
         }
-        if (direction === 'down') line.reverse();
         processLine(line, false, c);
       }
     }
-    return mergeTransitions;
+    return mergeTargets;
   };
 
-  // 执行过渡动画：数字渐变 + 放大回弹
-  const executeTransitionAnimation = (transitions) => {
+  // 对合并落点做放大回弹；默认每段 100ms（0.1s）
+  const animateMergeBounce = (mergeTargets, up = 1.12, dur = 100) => {
     return new Promise(resolve => {
-      if (!transitions || transitions.length === 0) return resolve();
+      if (!mergeTargets || mergeTargets.length === 0) return resolve();
       
-      const transitionAnims = [];
+      // 首先让合并后的瓦片从透明渐变到可见
+      const fadeInAnims = [];
+      const bounceAnims = [];
 
-      for (const { r, c } of transitions) {
+      for (const { r, c } of mergeTargets) {
         const key = `${r}-${c}`;
         const av = animatedValues.current[key];
         if (!av) continue;
 
-        // 重置并开始过渡动画
+        // 重置动画值
         av.scale.setValue(1);
-        av.opacity.setValue(1);
+        av.opacity.setValue(0); // 从透明开始
 
-        // 过渡 + 回弹动画
-        transitionAnims.push(
+        // 先淡入
+        fadeInAnims.push(
+          Animated.timing(av.opacity, { 
+            toValue: 1, 
+            duration: 80, 
+            useNativeDriver: true 
+          })
+        );
+
+        // 然后放大回弹（放大到1.2倍，覆盖格子边缘）
+        bounceAnims.push(
           Animated.sequence([
-            // 轻微放大表示合并
             Animated.timing(av.scale, { 
-              toValue: 1.15, 
-              duration: 100, 
+              toValue: 1.2, 
+              duration: 120, 
               useNativeDriver: true 
             }),
-            // 回弹到正常大小
             Animated.timing(av.scale, { 
               toValue: 1, 
-              duration: 100, 
+              duration: 120, 
               useNativeDriver: true 
             }),
           ])
         );
       }
 
-      // 执行过渡动画
-      Animated.parallel(transitionAnims).start(() => resolve());
+      // 先执行淡入动画
+      Animated.parallel(fadeInAnims).start(() => {
+        // 淡入完成后执行放大回弹动画
+        Animated.parallel(bounceAnims).start(() => resolve());
+      });
     });
   };
 
@@ -426,15 +358,11 @@ export default function HomeScreen() {
       return;
     }
 
-    // 1. 准备滑动动画数据
-    const slideTransitions = computeSlideTransitions(prev, direction)
+    // Generate ghost tiles for sliding animation
+    const transitions = computeTransitionsUIOnly(prev, result.board, direction)
       .filter(t => !(t.from.r === t.to.r && t.from.c === t.to.c));
     
-    // 2. 准备合并过渡数据
-    const mergeTransitions = computeMergeTransitions(prev, direction);
-    
-    // 3. 创建幽灵瓦片
-    ghostTilesRef.current = slideTransitions.map(t => ({
+    ghostTilesRef.current = transitions.map(t => ({
       key: `${t.from.r}-${t.from.c}`,
       value: prev[t.from.r][t.from.c],
       from: t.from,
@@ -442,53 +370,60 @@ export default function HomeScreen() {
       anim: new Animated.ValueXY({ x: toX(t.from.c), y: toY(t.from.r) }),
     }));
 
-    // 4. 设置过渡瓦片数据
-    setTransitionTiles(mergeTransitions);
+    // Set sliding state and animation lock AFTER ghost tiles are prepared
+    setIsSliding(true);
     
-    // 5. 设置动画状态
-    setAnimationState('sliding');
-    
-    // 6. 确保渲染完成
+    // Force a render cycle to ensure ghost tiles are ready before starting animation
     await new Promise(resolve => {
       requestAnimationFrame(resolve);
     });
     
     dispatch({ type: 'SET_ANIMATING', payload: true });
 
-    // 7. 更新分数
+    // Update score
     const newScore = state.score + result.score;
     dispatch({ type: 'UPDATE_SCORE', payload: newScore });
 
-    // 8. 开始滑动动画
+    // Start sliding animation
     const slideAnims = ghostTilesRef.current.map(g =>
       Animated.timing(g.anim, {
         toValue: { x: toX(g.to.c), y: toY(g.to.r) },
-        duration: 150,
+        duration: 120,
         useNativeDriver: true,
       })
     );
 
     Animated.parallel(slideAnims).start(async () => {
-      // 9. 滑动完成，清理幽灵瓦片
+      // 清除幽灵瓦片和滑动状态
       ghostTilesRef.current = [];
-      setAnimationState('transitioning');
+      setIsSliding(false);
       
-      // 10. 更新棋盘状态
-      dispatch({ type: 'SET_BOARD', payload: result.board });
-      
-      // 11. 短暂延迟确保DOM更新
-      await new Promise(resolve => setTimeout(resolve, 30));
-      
-      // 12. 执行过渡动画
-      if (mergeTransitions.length > 0) {
-        await executeTransitionAnimation(mergeTransitions);
+      // 计算合并落点
+      const mergeTargets = computeMergeTargets(prev, direction);
+
+      // 设置合并状态，隐藏即将被合并的位置
+      if (mergeTargets.length > 0) {
+        const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
+        setMergingPositions(mergePositionKeys);
+        setIsMerging(true);
       }
 
-      // 13. 清理过渡状态
-      setTransitionTiles([]);
-      setAnimationState('idle');
+      // 提交合并后的棋盘（此时合并位置的瓦片是隐藏的）
+      dispatch({ type: 'SET_BOARD', payload: result.board });
+      
+      // 短暂延迟，确保DOM更新完成
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // 执行合并动画（淡入 + 放大回弹）
+      if (mergeTargets.length > 0) {
+        await animateMergeBounce(mergeTargets, 1.2, 120);
+      }
 
-      // 14. 添加新瓦片
+      // 清除合并状态
+      setIsMerging(false);
+      setMergingPositions(new Set());
+
+      // 生成新砖并执行出生动画
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
@@ -497,7 +432,8 @@ export default function HomeScreen() {
 
       setMoveCount(prev => prev + 1);
 
-      // 15. 胜负判定
+      // 5) 计分、胜负判定、haptics 等（保持你的原有顺序）
+      // Check win condition
       if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
         dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
         showWinModal();
@@ -507,7 +443,7 @@ export default function HomeScreen() {
         showLoseModal();
       }
 
-      // 16. 触觉反馈
+      // Haptic feedback for valid move
       if (state.hapticsOn && Platform.OS !== 'web') {
         if (Haptics) {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -768,10 +704,11 @@ export default function HomeScreen() {
                 const key = `${rowIndex}-${colIndex}`;
                 const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
                 
-                // 判断是否被过渡瓦片覆盖
-                const isInTransition = transitionTiles.some(t => t.r === rowIndex && t.c === colIndex);
-                const shouldHide = animationState === 'sliding' && 
-                  ghostTilesRef.current.some(g => g.key === `${rowIndex}-${colIndex}`);
+                // 判断是否需要隐藏瓦片
+                const positionKey = `${rowIndex}-${colIndex}`;
+                const isInGhost = isSliding && ghostTilesRef.current.some(g => g.key === positionKey);
+                const isMergeHiding = isMerging && mergingPositions.has(positionKey);
+                const isHidden = isInGhost || isMergeHiding;
 
                 return (
                   <Animated.View
@@ -784,8 +721,8 @@ export default function HomeScreen() {
                         height: TILE_SIZE,
                         left: toX(colIndex),
                         top: toY(rowIndex),
-                        opacity: (shouldHide || isInTransition) ? 0 : anim.opacity,
-                        zIndex: (shouldHide || isInTransition) ? -1 : 1,
+                        opacity: isHidden ? 0 : anim.opacity,
+                        zIndex: isHidden ? -1 : 1,
                         transform: [{ scale: anim.scale }],
                       },
                     ]}
@@ -799,8 +736,8 @@ export default function HomeScreen() {
             )}
 
             {/* Ghost tiles overlay for sliding animation */}
-            <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, left: 0, top: 0, zIndex: 15 }}>
-              {animationState === 'sliding' && ghostTilesRef.current.map(g => (
+            <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, left: 0, top: 0, zIndex: 10 }}>
+              {isSliding && ghostTilesRef.current.map(g => (
                 <Animated.View
                   key={`ghost-${g.key}`}
                   style={[
@@ -809,6 +746,7 @@ export default function HomeScreen() {
                     {
                       width: TILE_SIZE,
                       height: TILE_SIZE,
+                      zIndex: 5,
                       transform: [{ translateX: g.anim.x }, { translateY: g.anim.y }],
                     },
                   ]}
@@ -816,16 +754,6 @@ export default function HomeScreen() {
                   <Text style={[styles.tileText, { fontSize: g.value > 512 ? 24 : 32 }]}>{g.value}</Text>
                 </Animated.View>
               ))}
-              
-              {/* Transition tiles for merge animation */}
-              {transitionTiles.map(transition => {
-                return (
-                  <AnimatedTransitionTile
-                    key={transition.id}
-                    transition={transition}
-                  />
-                );
-              })}
             </View>
           </Animated.View>
         </View>
