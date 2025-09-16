@@ -373,50 +373,49 @@ export default function HomeScreen() {
       ...slideAnims,
       ...mergeAnims,
     ]).start(async () => {
-      // 7. 动画完成后提交棋盘
-      ghostTilesRef.current = [];
-      dispatch({ type: 'SET_BOARD', payload: result.board });
-      
-      // 8. 恢复所有瓦片的透明度（不做缩放）
-      for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 4; col++) {
-          const key = `${row}-${col}`;
-          const anim = animatedValues.current[key];
-          if (anim) {
-            anim.opacity.setValue(1);
-            anim.scale.setValue(1);
+      // 7. 动画完成后直接生成新瓦片并一次性提交棋盘，避免中间状态闪烁
+      const boardWithoutNewTile = result.board;
+      const boardWithNewTile = addRandomTile(boardWithoutNewTile);
+      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
+      animateNewTiles(boardWithoutNewTile, boardWithNewTile);
+
+      // 在下一帧清理幽灵瓦片并恢复可见性，避免提交新棋盘与清理不同步导致的闪回
+      requestAnimationFrame(() => {
+        ghostTilesRef.current = [];
+        for (let row = 0; row < 4; row++) {
+          for (let col = 0; col < 4; col++) {
+            const key = `${row}-${col}`;
+            const anim = animatedValues.current[key];
+            if (anim) {
+              anim.opacity.setValue(1);
+              anim.scale.setValue(1);
+            }
           }
         }
-      }
 
-      // 9. 生成新瓦片并执行出生动画
-      const boardWithNewTile = addRandomTile(result.board);
-      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
-      animateNewTiles(result.board, boardWithNewTile);
+        // 10. 重置动画状态
+        setAnimationPhase('idle');
+        dispatch({ type: 'SET_ANIMATING', payload: false });
 
-      // 10. 重置动画状态
-      setAnimationPhase('idle');
-      dispatch({ type: 'SET_ANIMATING', payload: false });
+        setMoveCount(prev => prev + 1);
 
-      setMoveCount(prev => prev + 1);
-
-      // 11. 胜负判定和触觉反馈
-      // Check win condition
-      if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
-        showWinModal();
-      } else if (checkGameOver(boardWithNewTile)) {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-        await endGame(boardWithNewTile, newScore, false);
-        showLoseModal();
-      }
-
-      // Haptic feedback for valid move
-      if (state.hapticsOn && Platform.OS !== 'web') {
-        if (Haptics) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        // 11. 胜负判定和触觉反馈
+        if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
+          dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
+          showWinModal();
+        } else if (checkGameOver(boardWithNewTile)) {
+          dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
+          endGame(boardWithNewTile, newScore, false).then(() => {
+            showLoseModal();
+          });
         }
-      }
+
+        if (state.hapticsOn && Platform.OS !== 'web') {
+          if (Haptics) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+        }
+      });
     });
   }, [animationPhase, state.gameState, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
