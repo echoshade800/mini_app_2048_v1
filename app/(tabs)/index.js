@@ -271,8 +271,8 @@ export default function HomeScreen() {
     do {
       previous = cell;
       cell = { x: previous.x + vector.x, y: previous.y + vector.y };
-    } while (gridRef.current.cellAvailable(cell) && 
-             cell.x >= 0 && cell.x < 4 && cell.y >= 0 && cell.y < 4);
+    } while (cell.x >= 0 && cell.x < 4 && cell.y >= 0 && cell.y < 4 &&
+             gridRef.current.cellAvailable(cell));
 
     return {
       farthest: previous,
