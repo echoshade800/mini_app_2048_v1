@@ -12,7 +12,6 @@ import {
   StatusBar,
   InteractionManager
 } from 'react-native';
-import { unstable_batchedUpdates } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -390,16 +389,14 @@ export default function HomeScreen() {
       ...mergeAnims,
     ]).start(async () => {
       // 8. 原子切换：先提交新棋盘，但保持真实瓦片隐藏
-      unstable_batchedUpdates(() => {
-        // a) 提交合并后的棋盘
-        dispatch({ type: 'SET_BOARD', payload: result.board });
-        
-        // b) 立即生成新砖并提交
-        const withNew = addRandomTile(result.board);
-        dispatch({ type: 'SET_BOARD', payload: withNew });
-        
-        // c) 此时先不把 isSliding 设为 false，保持真实瓦片仍然被隐藏
-      });
+      // a) 提交合并后的棋盘
+      dispatch({ type: 'SET_BOARD', payload: result.board });
+      
+      // b) 立即生成新砖并提交
+      const withNew = addRandomTile(result.board);
+      dispatch({ type: 'SET_BOARD', payload: withNew });
+      
+      // c) 此时先不把 isSliding 设为 false，保持真实瓦片仍然被隐藏
       
       // d) 用两帧缓冲确保原生端把新棋盘绘制到屏幕
       requestAnimationFrame(() => {
