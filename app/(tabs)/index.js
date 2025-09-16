@@ -414,27 +414,27 @@ export default function HomeScreen() {
         // 12. 重置动画状态
         setAnimationPhase('idle');
         dispatch({ type: 'SET_ANIMATING', payload: false });
-      }, waitTime);
+        
+        setMoveCount(prev => prev + 1);
 
-      setMoveCount(prev => prev + 1);
-
-      // 11. 胜负判定和触觉反馈
-      // Check win condition
-      if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
-        showWinModal();
-      } else if (checkGameOver(boardWithNewTile)) {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-        await endGame(boardWithNewTile, newScore, false);
-        showLoseModal();
-      }
-
-      // Haptic feedback for valid move
-      if (state.hapticsOn && Platform.OS !== 'web') {
-        if (Haptics) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        // 13. 胜负判定和触觉反馈
+        // Check win condition
+        if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
+          dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
+          showWinModal();
+        } else if (checkGameOver(boardWithNewTile)) {
+          dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
+          await endGame(boardWithNewTile, newScore, false);
+          showLoseModal();
         }
-      }
+
+        // Haptic feedback for valid move
+        if (state.hapticsOn && Platform.OS !== 'web') {
+          if (Haptics) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+        }
+      }, waitTime);
     });
   }, [animationPhase, state.gameState, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
