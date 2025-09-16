@@ -9,8 +9,7 @@ import {
   Platform,
   PanResponder,
   Animated,
-  StatusBar,
-  InteractionManager
+  StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -67,12 +66,8 @@ export default function HomeScreen() {
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
   const [animationPhase, setAnimationPhase] = useState('idle'); // 'idle', 'animating'
-  const [isSliding, setIsSliding] = useState(false);
-  const [isMerging, setIsMerging] = useState(false);
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
-  const movingSetRef = useRef(new Set());
-  const mergeTargetSetRef = useRef(new Set());
   const masterTimeline = useRef(new Animated.Value(0));
 
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
@@ -87,18 +82,19 @@ export default function HomeScreen() {
     if (!animatedValues.current.board) {
       animatedValues.current.board = new Animated.Value(0);
     }
-  }, []);
-
-  // Initialize animations for tiles by ID
-  const getOrCreateTileAnimation = (tileId) => {
-    if (!animatedValues.current[tileId]) {
-      animatedValues.current[tileId] = {
-        scale: new Animated.Value(1),
-        opacity: new Animated.Value(1),
-      };
+    
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) {
+        const key = `${row}-${col}`;
+        if (!animatedValues.current[key]) {
+          animatedValues.current[key] = {
+            scale: new Animated.Value(1),
+            opacity: new Animated.Value(1),
+          };
+        }
+      }
     }
-    return animatedValues.current[tileId];
-  };
+  }, []);
 
   // Initialize game on first load
   useEffect(() => {
@@ -111,7 +107,7 @@ export default function HomeScreen() {
     }
     
     // Initialize board if empty
-    if (state.board.every(row => row.every(cell => cell === null || cell === 0))) {
+    if (state.board.every(row => row.every(cell => cell === null))) {
       startNewGame();
     }
   }, [state.isLoading, state.showOnboarding]);
@@ -146,23 +142,15 @@ export default function HomeScreen() {
     const N = 4;
 
     const processLine = (cells, isRow, fixedIndex) => {
-      const nonEmpty = cells.filter(x => x.tile != null);
+      const nonEmpty = cells.filter(x => x.v != null);
       const targets = [];
       let i = 0;
       while (i < nonEmpty.length) {
-        if (i + 1 < nonEmpty.length && nonEmpty[i].tile.value === nonEmpty[i+1].tile.value) {
-          targets.push({
-            value: nonEmpty[i].tile.value * 2, 
-            tileId: nonEmpty[i].tile.tileId, // 保持第一个瓦片的ID
-            froms: [nonEmpty[i], nonEmpty[i+1]]
-          });
+        if (i + 1 < nonEmpty.length && nonEmpty[i].v === nonEmpty[i+1].v) {
+          targets.push({v: nonEmpty[i].v * 2, froms: [nonEmpty[i], nonEmpty[i+1]]});
           i += 2;
         } else {
-          targets.push({
-            value: nonEmpty[i].tile.value, 
-            tileId: nonEmpty[i].tile.tileId,
-            froms: [nonEmpty[i]]
-          });
+          targets.push({v: nonEmpty[i].v, froms: [nonEmpty[i]]});
           i += 1;
         }
       }
@@ -180,8 +168,7 @@ export default function HomeScreen() {
             to: isRow
               ? { r: fixedIndex, c: destIndex }
               : { r: destIndex,  c: fixedIndex },
-            value: src.tile.value,
-            tileId: src.tile.tileId
+            value: src.v
           });
         });
       });
@@ -192,7 +179,7 @@ export default function HomeScreen() {
         let line = [];
         for (let c = 0; c < N; c++) {
           const cc = (direction === 'left') ? c : (N - 1 - c);
-          line.push({ tile: prevBoard[r][cc], r, c: cc });
+          line.push({ v: prevBoard[r][cc], r, c: cc });
         }
         processLine(line, true, r);
       }
@@ -201,7 +188,7 @@ export default function HomeScreen() {
         let line = [];
         for (let r = 0; r < N; r++) {
           const rr = (direction === 'up') ? r : (N - 1 - r);
-          line.push({ tile: prevBoard[rr][c], r: rr, c });
+          line.push({ v: prevBoard[rr][c], r: rr, c });
         }
         processLine(line, false, c);
       }
@@ -215,10 +202,10 @@ export default function HomeScreen() {
     const mergeTargets = [];
 
     const processLine = (cells, isRow, fixedIndex) => {
-      const nonEmpty = cells.filter(x => x.tile != null);
+      const nonEmpty = cells.filter(x => x.v != null);
       let i = 0, dest = 0;
       while (i < nonEmpty.length) {
-        if (i + 1 < nonEmpty.length && nonEmpty[i].tile.value === nonEmpty[i + 1].tile.value) {
+        if (i + 1 < nonEmpty.length && nonEmpty[i].v === nonEmpty[i + 1].v) {
           // 合并发生，计算目标位置
           let targetPos;
           if (isRow) {
@@ -245,7 +232,7 @@ export default function HomeScreen() {
         const line = [];
         for (let c = 0; c < N; c++) {
           const cc = direction === 'left' ? c : (N - 1 - c);
-          line.push({ tile: prevBoard[r][cc], r, c: cc });
+          line.push({ v: prevBoard[r][cc], r, c: cc });
         }
         processLine(line, true, r);
       }
@@ -254,7 +241,7 @@ export default function HomeScreen() {
         const line = [];
         for (let r = 0; r < N; r++) {
           const rr = direction === 'up' ? r : (N - 1 - r);
-          line.push({ tile: prevBoard[rr][c], r: rr, c });
+          line.push({ v: prevBoard[rr][c], r: rr, c });
         }
         processLine(line, false, c);
       }
@@ -284,7 +271,7 @@ export default function HomeScreen() {
   };
 
   const handleMove = useCallback(async (direction) => {
-    if (state.gameState !== 'playing' || isSliding) return;
+    if (state.gameState !== 'playing' || animationPhase !== 'idle') return;
 
     const prev = state.board;
     const result = move(state.board, direction);
@@ -326,34 +313,32 @@ export default function HomeScreen() {
     const mergeTargets = computeMergeTargets(prev, direction);
     
     // 2. 设置动画状态
-    setIsSliding(true);
-    setIsMerging(mergeTargets.length > 0);
+    setAnimationPhase('animating');
     dispatch({ type: 'SET_ANIMATING', payload: true });
     
-    // 3. 建立移动和合并的瓦片ID集合
-    movingSetRef.current = new Set(transitions.map(t => t.tileId));
-    mergeTargetSetRef.current = new Set(
-      transitions
-        .filter(t => mergeTargets.some(mt => mt.r === t.to.r && mt.c === t.to.c))
-        .map(t => t.tileId)
-    );
+    // 3. 隐藏将要移动的真实瓦片（只用 opacity）
+    const movingPositions = new Set(transitions.map(t => `${t.from.r}-${t.from.c}`));
+    for (const posKey of movingPositions) {
+      const anim = animatedValues.current[posKey];
+      if (anim) {
+        anim.opacity.setValue(0);
+      }
+    }
     
-    // 4. 创建幽灵瓦片
     ghostTilesRef.current = transitions.map(t => ({
-      key: t.tileId,
-      value: t.value,
-      tileId: t.tileId,
+      key: `${t.from.r}-${t.from.c}`,
+      value: prev[t.from.r][t.from.c],
       from: t.from,
       to: t.to,
       anim: new Animated.ValueXY({ x: toX(t.from.c), y: toY(t.from.r) }),
       scale: new Animated.Value(1),
     }));
 
-    // 5. 更新分数（但不提交棋盘）
+    // 4. 更新分数（但不提交棋盘）
     const newScore = state.score + result.score;
     dispatch({ type: 'UPDATE_SCORE', payload: newScore });
 
-    // 6. 统一时间线动画
+    // 5. 统一时间线动画
     masterTimeline.current.setValue(0);
     
     const slideAnims = ghostTilesRef.current.map(g => 
@@ -383,47 +368,46 @@ export default function HomeScreen() {
         ])
       );
 
-    // 7. 执行所有动画
+    // 6. 执行所有动画
     Animated.parallel([
       ...slideAnims,
       ...mergeAnims,
     ]).start(async () => {
-      // 8. 原子切换：先提交新棋盘，但保持真实瓦片隐藏
-      // a) 提交合并后的棋盘
+      // 7. 动画完成后提交棋盘
+      ghostTilesRef.current = [];
       dispatch({ type: 'SET_BOARD', payload: result.board });
       
-      // b) 立即生成新砖并提交
-      const withNew = addRandomTile(result.board);
-      dispatch({ type: 'SET_BOARD', payload: withNew });
-      
-      // c) 此时先不把 isSliding 设为 false，保持真实瓦片仍然被隐藏
-      
-      // d) 用两帧缓冲确保原生端把新棋盘绘制到屏幕
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // 此时再关闭幽灵，并显示真实瓦片
-          ghostTilesRef.current = [];
-          movingSetRef.current = new Set();
-          mergeTargetSetRef.current = new Set();
-          setIsMerging(false);
-          setIsSliding(false);
-          dispatch({ type: 'SET_ANIMATING', payload: false });
-          
-          // 执行新瓦片动画
-          animateNewTiles(result.board, state.board);
-        });
-      });
+      // 8. 恢复所有瓦片的透明度（不做缩放）
+      for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 4; col++) {
+          const key = `${row}-${col}`;
+          const anim = animatedValues.current[key];
+          if (anim) {
+            anim.opacity.setValue(1);
+            anim.scale.setValue(1);
+          }
+        }
+      }
+
+      // 9. 生成新瓦片并执行出生动画
+      const boardWithNewTile = addRandomTile(result.board);
+      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
+      animateNewTiles(result.board, boardWithNewTile);
+
+      // 10. 重置动画状态
+      setAnimationPhase('idle');
+      dispatch({ type: 'SET_ANIMATING', payload: false });
 
       setMoveCount(prev => prev + 1);
 
-      // 9. 胜负判定和触觉反馈
+      // 11. 胜负判定和触觉反馈
       // Check win condition
-      if (checkWin(state.board) && state.gameState === 'playing') {
+      if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
         dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
         showWinModal();
-      } else if (checkGameOver(state.board)) {
+      } else if (checkGameOver(boardWithNewTile)) {
         dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-        await endGame(state.board, newScore, false);
+        await endGame(boardWithNewTile, newScore, false);
         showLoseModal();
       }
 
@@ -434,11 +418,11 @@ export default function HomeScreen() {
         }
       }
     });
-  }, [isSliding, state.gameState, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
+  }, [animationPhase, state.gameState, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
   // 用 useMemo 重建 PanResponder，避免旧值问题
   const panResponder = useMemo(() => {
-    const isAnimating = () => isSliding;
+    const isAnimating = () => animationPhase !== 'idle';
     
     return PanResponder.create({
     // 尝试尽早接管（动画时不接管）
@@ -472,34 +456,34 @@ export default function HomeScreen() {
     },
     onShouldBlockNativeResponder: () => true,
   });
-  }, [handleMove, isSliding]);
+  }, [handleMove, animationPhase]);
 
   const animateNewTiles = (prevBoard, nextBoard) => {
     // Find new tiles and animate them
     for (let row = 0; row < 4; row++) {
       for (let col = 0; col < 4; col++) {
-        const nextTile = nextBoard[row][col];
-        const prevTile = prevBoard[row][col];
-        
-        if (nextTile && !prevTile) {
-          const anim = getOrCreateTileAnimation(nextTile.tileId);
+        if (nextBoard[row][col] && !prevBoard[row][col]) {
+          const key = `${row}-${col}`;
+          const anim = animatedValues.current[key];
           
-          anim.scale.setValue(0.6); // 从0.6开始，更自然
-          anim.opacity.setValue(0);
-          
-          Animated.parallel([
-            Animated.spring(anim.scale, {
-              toValue: 1,
-              tension: 300,
-              friction: 8,
-              useNativeDriver: true,
-            }),
-            Animated.timing(anim.opacity, {
-              toValue: 1,
-              duration: 150,
-              useNativeDriver: true,
-            }),
-          ]).start();
+          if (anim) {
+            anim.scale.setValue(0.6); // 从0.6开始，更自然
+            anim.opacity.setValue(0);
+            
+            Animated.parallel([
+              Animated.spring(anim.scale, {
+                toValue: 1,
+                tension: 300,
+                friction: 8,
+                useNativeDriver: true,
+              }),
+              Animated.timing(anim.opacity, {
+                toValue: 1,
+                duration: 150,
+                useNativeDriver: true,
+              }),
+            ]).start();
+          }
         }
       }
     }
@@ -685,53 +669,42 @@ export default function HomeScreen() {
             })}
 
             {/* Game tiles */}
-            {state.board.flat().filter(tile => tile !== null).map((tile) => {
-              const anim = getOrCreateTileAnimation(tile.tileId);
-              const hideReal = isSliding && (
-                movingSetRef.current.has(tile.tileId) || 
-                mergeTargetSetRef.current.has(tile.tileId)
-              );
+            {state.board.map((row, rowIndex) =>
+              row.map((value, colIndex) => {
+                if (!value) return null;
 
-              return (
-                <Animated.View
-                  key={tile.tileId}
-                  style={[
-                    styles.tile,
-                    getTileStyle(tile.value),
-                    {
-                      width: TILE_SIZE,
-                      height: TILE_SIZE,
-                      transform: [
-                        { translateX: toX(tile.col) },
-                        { translateY: toY(tile.row) },
-                        { scale: anim.scale }
-                      ],
-                      opacity: hideReal ? 0 : anim.opacity,
-                      renderToHardwareTextureAndroid: true,
-                      needsOffscreenAlphaCompositing: true,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.tileText, { fontSize: tile.value > 512 ? 24 : 32 }]}>
-                    {tile.value}
-                  </Text>
-                </Animated.View>
-              );
-            })}
+                const key = `${rowIndex}-${colIndex}`;
+                const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
+                
+                return (
+                  <Animated.View
+                    key={key}
+                    style={[
+                      styles.tile,
+                      getTileStyle(value),
+                      {
+                        width: TILE_SIZE,
+                        height: TILE_SIZE,
+                        left: toX(colIndex),
+                        top: toY(rowIndex),
+                        opacity: anim.opacity,
+                        transform: [{ scale: anim.scale }],
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.tileText, { fontSize: value > 512 ? 24 : 32 }]}>
+                      {value}
+                    </Text>
+                  </Animated.View>
+                );
+              })
+            )}
 
             {/* Ghost tiles overlay for sliding animation */}
-            <View style={{ 
-              position: 'absolute', 
-              width: BOARD_SIZE, 
-              height: BOARD_SIZE, 
-              left: 0, 
-              top: 0, 
-              zIndex: 15,
-              pointerEvents: 'none'
-            }}>
-              {isSliding && ghostTilesRef.current.map(g => (
+            <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, left: 0, top: 0, zIndex: 15 }}>
+              {animationPhase === 'animating' && ghostTilesRef.current.map(g => (
                 <Animated.View
-                  key={`ghost-${g.tileId}`}
+                  key={`ghost-${g.key}`}
                   style={[
                     styles.tile,
                     getTileStyle(g.value),
@@ -743,8 +716,6 @@ export default function HomeScreen() {
                         { translateY: g.anim.y },
                         { scale: g.scale }
                       ],
-                      renderToHardwareTextureAndroid: true,
-                      needsOffscreenAlphaCompositing: true,
                     },
                   ]}
                 >
