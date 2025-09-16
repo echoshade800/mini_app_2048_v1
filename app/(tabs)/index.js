@@ -412,7 +412,9 @@ export default function HomeScreen() {
 
         if (tile) {
           const positions = findFarthestPosition(cell, vector);
-          const next = grid.cellContent(positions.next);
+          const next = (positions.next.x >= 0 && positions.next.x < 4 && 
+                       positions.next.y >= 0 && positions.next.y < 4) 
+                       ? grid.cellContent(positions.next) : null;
 
           // Only one merger per row traversal?
           if (next && next.value === tile.value && !next.mergedFrom) {
