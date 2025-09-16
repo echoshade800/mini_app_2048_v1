@@ -96,6 +96,55 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const animateNewTiles = (prevBoard, nextBoard) => {
+    // Find new tiles and animate them
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) {
+        if (nextBoard[row][col] && !prevBoard[row][col]) {
+          const key = `${row}-${col}`;
+          const anim = animatedValues.current[key];
+          
+          if (anim) {
+            anim.scale.setValue(0.4);
+            anim.opacity.setValue(0);
+            
+            if (Platform.OS !== 'web') {
+              // 移动端：更柔和的弹性动画
+              Animated.parallel([
+                Animated.spring(anim.scale, {
+                  toValue: 1,
+                  tension: 200,
+                  friction: 10,
+                  useNativeDriver: true,
+                }),
+                Animated.timing(anim.opacity, {
+                  toValue: 1,
+                  duration: 200,
+                  useNativeDriver: true,
+                }),
+              ]).start();
+            } else {
+              // Web端：快速动画
+              Animated.parallel([
+                Animated.spring(anim.scale, {
+                  toValue: 1,
+                  tension: 300,
+                  friction: 8,
+                  useNativeDriver: true,
+                }),
+                Animated.timing(anim.opacity, {
+                  toValue: 1,
+                  duration: 150,
+                  useNativeDriver: true,
+                }),
+              ]).start();
+            }
+          }
+        }
+      }
+    }
+  };
+
   // Initialize game on first load
   useEffect(() => {
     if (state.isLoading) return;
@@ -449,57 +498,9 @@ export default function HomeScreen() {
           }
         }, newTileDelay);
       });
+    });
     }, animationDelay);
   }, [animationPhase, state.gameState, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
-
-  const animateNewTiles = (prevBoard, nextBoard) => {
-    // Find new tiles and animate them
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 4; col++) {
-        if (nextBoard[row][col] && !prevBoard[row][col]) {
-          const key = `${row}-${col}`;
-          const anim = animatedValues.current[key];
-          
-          if (anim) {
-            anim.scale.setValue(0.4);
-            anim.opacity.setValue(0);
-            
-            if (Platform.OS !== 'web') {
-              // 移动端：更柔和的弹性动画
-              Animated.parallel([
-                Animated.spring(anim.scale, {
-                  toValue: 1,
-                  tension: 200,
-                  friction: 10,
-                  useNativeDriver: true,
-                }),
-                Animated.timing(anim.opacity, {
-                  toValue: 1,
-                  duration: 200,
-                  useNativeDriver: true,
-                }),
-              ]).start();
-            } else {
-              // Web端：快速动画
-              Animated.parallel([
-                Animated.spring(anim.scale, {
-                  toValue: 1,
-                  tension: 300,
-                  friction: 8,
-                  useNativeDriver: true,
-                }),
-                Animated.timing(anim.opacity, {
-                  toValue: 1,
-                  duration: 150,
-                  useNativeDriver: true,
-                }),
-              ]).start();
-            }
-          }
-        }
-      }
-    }
-  };
 
   // 用 useMemo 重建 PanResponder，避免旧值问题
   const panResponder = useMemo(() => {
