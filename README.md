@@ -49,44 +49,11 @@ npm install
 # Start development server
 npm run dev
 
-# For H5/web development
-npm run web
+# For web development
+npm run dev --web
 
 # Build for production
 npm run build:web
-
-# Preview web build locally
-npm run preview:web
-```
-
-## 🌐 H5/Web Support
-
-This app is fully compatible with H5/web browsers:
-
-### Features
-- **Responsive Design**: Adapts to different screen sizes
-- **Touch & Mouse Support**: Works with both touch gestures and mouse interactions
-- **Keyboard Controls**: Arrow keys for desktop users
-- **Progressive Web App**: Can be installed as a PWA
-- **Cross-browser Compatibility**: Works on Chrome, Firefox, Safari, Edge
-
-### Web-specific Optimizations
-- Larger board size for desktop screens
-- Optimized font stack for web browsers
-- Custom volume controls (slider replacement)
-- Disabled text selection for better UX
-- Proper cursor styles for interactive elements
-
-### Running on Web
-```bash
-# Development
-npm run web
-
-# Production build
-npm run build:web
-
-# Preview production build
-npm run preview:web
 ```
 
 ## 🎮 How to Play
