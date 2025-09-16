@@ -306,3 +306,8 @@ export default function HomeScreen() {
     if (!result.isValidMove) {
       // Invalid move - shake animation and haptic
       if (state.hapticsOn && Platform.OS !== 'web') {
+      }
+    }
+  }
+  )
+}
