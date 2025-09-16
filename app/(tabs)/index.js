@@ -8,12 +8,12 @@ import {
   Alert,
   Platform,
   PanResponder,
-  Animated
+  Animated,
+  StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { useGame } from '../../contexts/GameContext';
 import {
   initializeBoard,
@@ -24,19 +24,37 @@ import {
   getHighestTile
 } from '../../utils/GameLogic';
 
+// 动态导入 Haptics，避免 H5 环境报错
+let Haptics = null;
+if (Platform.OS !== 'web') {
+  try {
+    Haptics = require('expo-haptics');
+  } catch (error) {
+    console.log('Haptics not available on this platform');
+  }
+}
+
 const { width: screenWidth } = Dimensions.get('window');
-const BOARD_SIZE = Math.min(screenWidth - 40, 320);
+// H5 适配：根据平台调整棋盘大小
+const BOARD_SIZE = Platform.OS === 'web' 
+  ? Math.min(screenWidth - 40, 400) // H5 上稍大一些
+  : Math.min(screenWidth - 40, 320);
 
-// Unified grid constants
-const GRID = 4;
-const PADDING = 10;
-const GAP = 10;
-const INNER = BOARD_SIZE - PADDING * 2;
-const TILE_SIZE = (INNER - GAP * (GRID + 1)) / GRID;
+// Grid constants adapted from original 2048
+const GRID_SIZE = 4;
+const GRID_SPACING = 10;
+const GRID_ROW_CELLS = 4;
+const TILE_SIZE = Math.floor((BOARD_SIZE - GRID_SPACING * (GRID_ROW_CELLS + 1)) / GRID_ROW_CELLS);
+const TILE_BORDER_RADIUS = 3;
 
-// Coordinate helpers
-const toX = (c) => PADDING + GAP + c * (TILE_SIZE + GAP);
-const toY = (r) => PADDING + GAP + r * (TILE_SIZE + GAP);
+// Position calculation helpers
+const cellPosition = (x) => {
+  return GRID_SPACING + x * (TILE_SIZE + GRID_SPACING);
+};
+
+// Helper functions for tile positioning
+const toX = (col) => cellPosition(col);
+const toY = (row) => cellPosition(row);
 
 /**
  * Home Screen - Main Game Board
@@ -232,6 +250,32 @@ export default function HomeScreen() {
     return mergeTargets;
   };
 
+  // 对合并落点做放大回弹；默认每段 100ms（0.1s）
+  const animateMergeBounce = (mergeTargets, up = 1.12, dur = 100) => {
+    return new Promise(resolve => {
+      if (!mergeTargets || mergeTargets.length === 0) return resolve();
+      const anims = [];
+
+      for (const { r, c } of mergeTargets) {
+        const key = `${r}-${c}`;
+        const av = animatedValues.current[key];
+        if (!av) continue;
+
+        // 先重置，避免前一次动画遗留
+        av.scale.setValue(1);
+
+        anims.push(
+          Animated.sequence([
+            Animated.timing(av.scale, { toValue: up, duration: dur, useNativeDriver: true }),
+            Animated.timing(av.scale, { toValue: 1,  duration: dur, useNativeDriver: true }),
+          ])
+        );
+      }
+
+      Animated.parallel(anims).start(() => resolve());
+    });
+  };
+
   const startNewGame = () => {
     const newBoard = initializeBoard();
     const gameData = {
@@ -261,7 +305,9 @@ export default function HomeScreen() {
     if (!result.isValidMove) {
       // Invalid move - shake animation and haptic
       if (state.hapticsOn && Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        if (Haptics) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
       }
       
       // Shake animation
@@ -322,11 +368,11 @@ export default function HomeScreen() {
     );
 
     Animated.parallel(slideAnims).start(async () => {
-      // Commit new board after sliding
-      dispatch({ type: 'SET_BOARD', payload: result.board });
-      
-      // 计算合并目标位置
+      // 1) 计算本次"合并落点"——仅 UI 用
       const mergeTargets = computeMergeTargets(prev, direction);
+
+      // 2) 提交"合并后的棋盘"（尚未生成新砖）
+      dispatch({ type: 'SET_BOARD', payload: result.board });
       
       // 设置合并状态，隐藏合并位置的瓦片
       if (mergeTargets.length > 0) {
@@ -335,14 +381,14 @@ export default function HomeScreen() {
         setIsMerging(true);
       }
 
-      // 只对合并位置做弹跳动画
-      await animateMergeBounce(mergeTargets);
-      
       // 清除合并状态
       setIsMerging(false);
       setMergingPositions(new Set());
 
-      // Add new tile and animate only the new tile
+      // 3) 只对"合并落点"弹跳（每段 0.1s）
+      await animateMergeBounce(mergeTargets, 1.12, 100);
+
+      // 4) 生成新砖 & 只对"新增格子"弹入（沿用你已做好的 prev/next 对比）
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
@@ -354,6 +400,7 @@ export default function HomeScreen() {
 
       setMoveCount(prev => prev + 1);
 
+      // 5) 计分、胜负判定、haptics 等（保持你的原有顺序）
       // Check win condition
       if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
         dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
@@ -366,7 +413,9 @@ export default function HomeScreen() {
 
       // Haptic feedback for valid move
       if (state.hapticsOn && Platform.OS !== 'web') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (Haptics) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
       }
     });
   }, [state.gameState, state.isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
@@ -404,40 +453,6 @@ export default function HomeScreen() {
     },
     onShouldBlockNativeResponder: () => true,
   }), [handleMove]); // 只依赖稳定的 handleMove
-
-  // 只对合并位置做弹跳动画
-  const animateMergeBounce = (mergeTargets) => {
-    return new Promise(resolve => {
-      if (!mergeTargets || mergeTargets.length === 0) {
-        return resolve();
-      }
-
-      const animations = [];
-      for (const { r, c } of mergeTargets) {
-        const key = `${r}-${c}`;
-        const anim = animatedValues.current[key];
-        
-        if (anim) {
-          animations.push(
-            Animated.sequence([
-              Animated.timing(anim.scale, {
-                toValue: 1.12,
-                duration: 100,
-                useNativeDriver: true,
-              }),
-              Animated.timing(anim.scale, {
-                toValue: 1,
-                duration: 100,
-                useNativeDriver: true,
-              }),
-            ])
-          );
-        }
-      }
-      
-      Animated.parallel(animations).start(() => resolve());
-    });
-  };
 
   const animateNewTiles = (prevBoard, nextBoard) => {
     // Find new tiles and animate them
@@ -542,26 +557,37 @@ export default function HomeScreen() {
   };
 
   const getTileStyle = (value) => {
-    const colors = {
-      2: { bg: '#eee4da', text: '#776e65' },
-      4: { bg: '#ede0c8', text: '#776e65' },
-      8: { bg: '#f2b179', text: '#f9f6f2' },
-      16: { bg: '#f59563', text: '#f9f6f2' },
-      32: { bg: '#f67c5f', text: '#f9f6f2' },
-      64: { bg: '#f65e3b', text: '#f9f6f2' },
-      128: { bg: '#edcf72', text: '#f9f6f2' },
-      256: { bg: '#edcc61', text: '#f9f6f2' },
-      512: { bg: '#edc850', text: '#f9f6f2' },
-      1024: { bg: '#edc53f', text: '#f9f6f2' },
-      2048: { bg: '#edc22e', text: '#f9f6f2' },
+    // Original 2048 color scheme
+    const tileColors = {
+      2: { backgroundColor: '#eee4da', color: '#776e65' },
+      4: { backgroundColor: '#ede0c8', color: '#776e65' },
+      8: { backgroundColor: '#f2b179', color: '#f9f6f2' },
+      16: { backgroundColor: '#f59563', color: '#f9f6f2' },
+      32: { backgroundColor: '#f67c5f', color: '#f9f6f2' },
+      64: { backgroundColor: '#f65e3b', color: '#f9f6f2' },
+      128: { backgroundColor: '#edcf72', color: '#f9f6f2', fontSize: 45 },
+      256: { backgroundColor: '#edcc61', color: '#f9f6f2', fontSize: 45 },
+      512: { backgroundColor: '#edc850', color: '#f9f6f2', fontSize: 45 },
+      1024: { backgroundColor: '#edc53f', color: '#f9f6f2', fontSize: 35 },
+      2048: { backgroundColor: '#edc22e', color: '#f9f6f2', fontSize: 35 },
+      4096: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
+      8192: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
     };
 
-    const color = colors[value] || { bg: '#3c3a32', text: '#f9f6f2' };
-    
-    return {
-      backgroundColor: color.bg,
-      color: color.text,
+    const tileClass = tileColors[value] || { 
+      backgroundColor: '#3c3a32', 
+      color: '#f9f6f2', 
+      fontSize: 30 
     };
+    
+    return tileClass;
+  };
+
+  const getTileFontSize = (value) => {
+    if (value < 100) return 55;
+    if (value < 1000) return 45;
+    if (value < 10000) return 35;
+    return 30;
   };
 
   if (state.isLoading) {
@@ -576,6 +602,9 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* H5 适配：添加状态栏 */}
+      {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
+      
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.scoreContainer}>
@@ -626,7 +655,7 @@ export default function HomeScreen() {
           >
             {/* Background grid */}
             {Array.from({ length: 16 }).map((_, i) => {
-              const r = Math.floor(i / GRID), c = i % GRID;
+              const r = Math.floor(i / GRID_ROW_CELLS), c = i % GRID_ROW_CELLS;
               return (
                 <View
                   key={i}
@@ -697,7 +726,9 @@ export default function HomeScreen() {
         {/* Game instructions for mobile */}
         <View style={styles.controls}>
           <Text style={styles.controlsText}>
-            {Platform.OS === 'web' ? 'Use arrow keys or swipe to move' : 'Swipe in any direction to move tiles'}
+            {Platform.OS === 'web' 
+              ? 'Use arrow keys or mouse swipe to move tiles' 
+              : 'Swipe in any direction to move tiles'}
           </Text>
         </View>
       </View>
@@ -709,7 +740,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#faf8ef',
-    paddingHorizontal: 20,
+    paddingHorizontal: Platform.OS === 'web' ? 16 : 20,
+    // H5 适配：添加最小高度
+    ...(Platform.OS === 'web' && {
+      minHeight: '100vh',
+      maxWidth: 600,
+      marginHorizontal: 'auto',
+    }),
   },
   loadingContainer: {
     flex: 1,
@@ -724,7 +761,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: Platform.OS === 'web' ? 16 : 20,
+    // H5 适配：添加顶部间距
+    ...(Platform.OS === 'web' && {
+      paddingTop: 20,
+    }),
   },
   scoreContainer: {
     flexDirection: 'row',
@@ -735,7 +776,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    minWidth: 70,
+    minWidth: Platform.OS === 'web' ? 80 : 70,
     alignItems: 'center',
   },
   scoreLabel: {
@@ -757,6 +798,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    // H5 适配：添加鼠标悬停效果
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
   },
   newGameText: {
     color: '#ffffff',
@@ -772,49 +817,66 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   instructionsText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'web' ? 18 : 16,
     color: '#776e65',
     marginBottom: 8,
+    textAlign: 'center',
   },
   historyLink: {
     fontSize: 14,
     color: '#667eea',
     textDecorationLine: 'underline',
+    // H5 适配：添加鼠标悬停效果
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
   },
   board: {
-    backgroundColor: '#bbada0',
-    borderRadius: 12,
-    padding: PADDING,
+    backgroundColor: '#bbada0', // Original game board color
+    borderRadius: 6,
+    padding: GRID_SPACING,
     position: 'relative',
     marginBottom: 20,
   },
   gridCell: {
-    backgroundColor: '#cdc1b4',
-    borderRadius: 6,
+    backgroundColor: '#cdc1b4', // Original empty cell color
+    borderRadius: TILE_BORDER_RADIUS,
     position: 'absolute',
   },
   tile: {
-    borderRadius: 6,
+    borderRadius: TILE_BORDER_RADIUS,
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    // H5 适配：添加用户选择禁用
+    ...(Platform.OS === 'web' && {
+      userSelect: 'none',
+      WebkitUserSelect: 'none',
+    }),
   },
   tileText: {
-    fontWeight: 'bold',
+    fontWeight: '700', // Bold font weight like original
     textAlign: 'center',
+    fontFamily: Platform.select({
+      ios: 'Helvetica Neue',
+      android: 'Roboto',
+      web: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    }),
+    // H5 适配：添加用户选择禁用
+    ...(Platform.OS === 'web' && {
+      userSelect: 'none',
+      WebkitUserSelect: 'none',
+    }),
   },
   controls: {
     alignItems: 'center',
-    paddingTop: 20,
+    paddingTop: Platform.OS === 'web' ? 16 : 20,
+    paddingBottom: Platform.OS === 'web' ? 20 : 0,
   },
   controlsText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'web' ? 16 : 14,
     color: '#8f7a66',
     textAlign: 'center',
+    lineHeight: 20,
   },
 });

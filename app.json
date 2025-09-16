@@ -14,9 +14,22 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "2048 Game",
+      "shortName": "2048",
+      "lang": "en",
+      "scope": "/",
+      "themeColor": "#667eea",
+      "backgroundColor": "#faf8ef",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/"
     },
-    "plugins": ["expo-router", "expo-font"],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-web-browser"
+    ],
     "experiments": {
       "typedRoutes": true
     }

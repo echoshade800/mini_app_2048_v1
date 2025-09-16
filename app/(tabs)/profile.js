@@ -12,8 +12,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
 import { useGame } from '../../contexts/GameContext';
+
+// 动态导入 Slider，H5 环境可能不支持
+let Slider = null;
+if (Platform.OS !== 'web') {
+  try {
+    Slider = require('@react-native-community/slider').default;
+  } catch (error) {
+    console.log('Slider not available on this platform');
+  }
+}
 
 /**
  * Profile & Settings Screen
@@ -192,7 +201,7 @@ export default function ProfileScreen() {
           </View>
 
           {/* Volume Slider */}
-          {state.soundOn && (
+          {state.soundOn && Slider && Platform.OS !== 'web' && (
             <View style={styles.settingItem}>
               <Text style={styles.settingLabel}>Volume</Text>
               <View style={styles.sliderContainer}>
@@ -209,6 +218,32 @@ export default function ProfileScreen() {
                 />
                 <Ionicons name="volume-high" size={20} color="#94a3b8" />
                 <Text style={styles.volumeValue}>{state.volume}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* H5 环境的音量控制替代方案 */}
+          {state.soundOn && Platform.OS === 'web' && (
+            <View style={styles.settingItem}>
+              <Text style={styles.settingLabel}>Volume: {state.volume}%</Text>
+              <View style={styles.webVolumeControls}>
+                <TouchableOpacity 
+                  style={styles.volumeButton}
+                  onPress={() => updateSetting('volume', Math.max(0, state.volume - 10))}
+                >
+                  <Ionicons name="remove" size={16} color="#667eea" />
+                </TouchableOpacity>
+                <View style={styles.volumeBar}>
+                  <View 
+                    style={[styles.volumeFill, { width: `${state.volume}%` }]} 
+                  />
+                </View>
+                <TouchableOpacity 
+                  style={styles.volumeButton}
+                  onPress={() => updateSetting('volume', Math.min(100, state.volume + 10))}
+                >
+                  <Ionicons name="add" size={16} color="#667eea" />
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -282,9 +317,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+    // H5 适配
+    ...(Platform.OS === 'web' && {
+      minHeight: '100vh',
+      maxWidth: 600,
+      marginHorizontal: 'auto',
+    }),
   },
   content: {
-    padding: 20,
+    padding: Platform.OS === 'web' ? 16 : 20,
   },
   header: {
     marginBottom: 30,
@@ -484,6 +525,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#f8fafc',
     marginBottom: 8,
+    // H5 适配：添加鼠标悬停效果
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
   },
   navigationButtonText: {
     fontSize: 16,
@@ -491,5 +536,34 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     marginLeft: 8,
     flex: 1,
+  },
+  // H5 音量控制样式
+  webVolumeControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  volumeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  volumeBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 4,
+    marginHorizontal: 12,
+    overflow: 'hidden',
+  },
+  volumeFill: {
+    height: '100%',
+    backgroundColor: '#667eea',
+    borderRadius: 4,
   },
 });
