@@ -412,7 +412,7 @@ export default function HomeScreen() {
       dispatch({ type: 'SET_BOARD', payload: result.board });
       
       // 短暂延迟，确保DOM更新完成
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, 20));
       
       // 执行合并动画（淡入 + 放大回弹）
       if (mergeTargets.length > 0) {
