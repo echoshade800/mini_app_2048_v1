@@ -329,7 +329,7 @@ export default function HomeScreen() {
           allAnims.push(
             Animated.timing(ghost.anim, {
               toValue: { x: toX(ghost.to.c), y: toY(ghost.to.r) },
-              duration: 120,
+              duration: 150,
               useNativeDriver: true,
             })
           );
@@ -339,12 +339,12 @@ export default function HomeScreen() {
             Animated.parallel([
               Animated.timing(ghost.anim, {
                 toValue: { x: toX(ghost.to.c), y: toY(ghost.to.r) },
-                duration: 120,
+                duration: 150,
                 useNativeDriver: true,
               }),
               Animated.timing(ghost.opacity, {
                 toValue: 0,
-                duration: 120,
+                duration: 150,
                 useNativeDriver: true,
               })
             ])
@@ -355,18 +355,18 @@ export default function HomeScreen() {
             Animated.sequence([
               Animated.timing(ghost.opacity, {
                 toValue: 1,
-                duration: 60,
+                duration: 75,
                 useNativeDriver: true,
               }),
               Animated.sequence([
                 Animated.timing(ghost.scale, {
                   toValue: 1.12,
-                  duration: 100,
+                  duration: 80,
                   useNativeDriver: true,
                 }),
                 Animated.timing(ghost.scale, {
                   toValue: 1,
-                  duration: 100,
+                  duration: 80,
                   useNativeDriver: true,
                 })
               ])
