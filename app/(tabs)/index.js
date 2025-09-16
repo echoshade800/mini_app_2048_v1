@@ -500,44 +500,45 @@ export default function HomeScreen() {
       }
     }
   };
+
+  // 用 useMemo 重建 PanResponder，避免旧值问题
   const panResponder = useMemo(() => {
     const isAnimating = () => animationPhase !== 'idle';
     
     return PanResponder.create({
-    // 尝试尽早接管（动画时不接管）
-    onStartShouldSetPanResponder: () => !isAnimating(),
-    onMoveShouldSetPanResponder: (_evt, g) => {
-      if (isAnimating()) return false;
-      const { dx, dy } = g;
-      const THRESHOLD = 20; // 统一阈值
-      return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
-    },
-    // 有子元素（按钮/文字）时，capture 有助于父级接管
-    onStartShouldSetPanResponderCapture: () => !isAnimating(),
-    onMoveShouldSetPanResponderCapture: (_evt, g) => {
-      if (isAnimating()) return false;
-      const { dx, dy } = g;
-      const THRESHOLD = 20;
-      return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
-    },
-    onPanResponderRelease: (_evt, g) => {
-      if (isAnimating()) return;
-      const { dx, dy } = g;
-      const THRESHOLD = 20;
+      // 尝试尽早接管（动画时不接管）
+      onStartShouldSetPanResponder: () => !isAnimating(),
+      onMoveShouldSetPanResponder: (_evt, g) => {
+        if (isAnimating()) return false;
+        const { dx, dy } = g;
+        const THRESHOLD = 20; // 统一阈值
+        return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
+      },
+      // 有子元素（按钮/文字）时，capture 有助于父级接管
+      onStartShouldSetPanResponderCapture: () => !isAnimating(),
+      onMoveShouldSetPanResponderCapture: (_evt, g) => {
+        if (isAnimating()) return false;
+        const { dx, dy } = g;
+        const THRESHOLD = 20;
+        return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
+      },
+      onPanResponderRelease: (_evt, g) => {
+        if (isAnimating()) return;
+        const { dx, dy } = g;
+        const THRESHOLD = 20;
 
-      if (Math.abs(dx) < THRESHOLD && Math.abs(dy) < THRESHOLD) return;
+        if (Math.abs(dx) < THRESHOLD && Math.abs(dy) < THRESHOLD) return;
 
-      const dir = Math.abs(dx) >= Math.abs(dy)
-        ? (dx > 0 ? 'right' : 'left')
-        : (dy > 0 ? 'down' : 'up');
+        const dir = Math.abs(dx) >= Math.abs(dy)
+          ? (dx > 0 ? 'right' : 'left')
+          : (dy > 0 ? 'down' : 'up');
 
-      handleMove(dir);
-    },
-    onShouldBlockNativeResponder: () => true,
-  });
+        handleMove(dir);
+      },
+      onShouldBlockNativeResponder: () => true,
+    });
   }, [handleMove, animationPhase]);
 
-  // 用 useMemo 重建 PanResponder，避免旧值问题
   const endGame = async (finalBoard, finalScore, won) => {
     const endTime = Date.now();
     const duration = gameStartTime ? Math.floor((endTime - gameStartTime) / 1000) : 0;
