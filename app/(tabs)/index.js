@@ -52,6 +52,82 @@ const cellPosition = (x) => {
   return GRID_SPACING + x * (TILE_SIZE + GRID_SPACING);
 };
 
+// Separate component for transition tiles to avoid Rules of Hooks violation
+const AnimatedTransitionTile = ({ transition }) => {
+  const [currentValue, setCurrentValue] = React.useState(transition.fromValue);
+  const [opacity] = React.useState(new Animated.Value(0));
+  const [scale] = React.useState(new Animated.Value(0.8));
+  
+  React.useEffect(() => {
+    // 淡入动画
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    // 100ms后切换数字
+    setTimeout(() => {
+      setCurrentValue(transition.toValue);
+    }, 100);
+  }, []);
+  
+  const getTileStyle = (value) => {
+    // Original 2048 color scheme
+    const tileColors = {
+      2: { backgroundColor: '#eee4da', color: '#776e65' },
+      4: { backgroundColor: '#ede0c8', color: '#776e65' },
+      8: { backgroundColor: '#f2b179', color: '#f9f6f2' },
+      16: { backgroundColor: '#f59563', color: '#f9f6f2' },
+      32: { backgroundColor: '#f67c5f', color: '#f9f6f2' },
+      64: { backgroundColor: '#f65e3b', color: '#f9f6f2' },
+      128: { backgroundColor: '#edcf72', color: '#f9f6f2', fontSize: 45 },
+      256: { backgroundColor: '#edcc61', color: '#f9f6f2', fontSize: 45 },
+      512: { backgroundColor: '#edc850', color: '#f9f6f2', fontSize: 45 },
+      1024: { backgroundColor: '#edc53f', color: '#f9f6f2', fontSize: 35 },
+      2048: { backgroundColor: '#edc22e', color: '#f9f6f2', fontSize: 35 },
+      4096: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
+      8192: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
+    };
+
+    const tileClass = tileColors[value] || { 
+      backgroundColor: '#3c3a32', 
+      color: '#f9f6f2', 
+      fontSize: 30 
+    };
+    
+    return tileClass;
+  };
+  
+  return (
+    <Animated.View
+      style={[
+        styles.tile,
+        getTileStyle(currentValue),
+        {
+          width: TILE_SIZE,
+          height: TILE_SIZE,
+          left: toX(transition.c),
+          top: toY(transition.r),
+          opacity,
+          transform: [{ scale }],
+        },
+      ]}
+    >
+      <Text style={[styles.tileText, { fontSize: currentValue > 512 ? 24 : 32 }]}>
+        {currentValue}
+      </Text>
+    </Animated.View>
+  );
+};
+
 // Helper functions for tile positioning
 const toX = (col) => cellPosition(col);
 const toY = (row) => cellPosition(row);
@@ -743,51 +819,11 @@ export default function HomeScreen() {
               
               {/* Transition tiles for merge animation */}
               {transitionTiles.map(transition => {
-                const [currentValue, setCurrentValue] = React.useState(transition.fromValue);
-                const [opacity] = React.useState(new Animated.Value(0));
-                const [scale] = React.useState(new Animated.Value(0.8));
-                
-                React.useEffect(() => {
-                  // 淡入动画
-                  Animated.parallel([
-                    Animated.timing(opacity, {
-                      toValue: 1,
-                      duration: 100,
-                      useNativeDriver: true,
-                    }),
-                    Animated.timing(scale, {
-                      toValue: 1,
-                      duration: 100,
-                      useNativeDriver: true,
-                    }),
-                  ]).start();
-                  
-                  // 100ms后切换数字
-                  setTimeout(() => {
-                    setCurrentValue(transition.toValue);
-                  }, 100);
-                }, []);
-                
                 return (
-                  <Animated.View
+                  <AnimatedTransitionTile
                     key={transition.id}
-                    style={[
-                      styles.tile,
-                      getTileStyle(currentValue),
-                      {
-                        width: TILE_SIZE,
-                        height: TILE_SIZE,
-                        left: toX(transition.c),
-                        top: toY(transition.r),
-                        opacity,
-                        transform: [{ scale }],
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.tileText, { fontSize: currentValue > 512 ? 24 : 32 }]}>
-                      {currentValue}
-                    </Text>
-                  </Animated.View>
+                    transition={transition}
+                  />
                 );
               })}
             </View>
