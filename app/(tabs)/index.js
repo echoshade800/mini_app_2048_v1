@@ -354,7 +354,6 @@ export default function HomeScreen() {
     }
     
     function startGhostAnimation() {
-    function startGhostAnimation() {
       // 4. 更新分数（但不提交棋盘）
       const newScore = state.score + result.score;
       dispatch({ type: 'UPDATE_SCORE', payload: newScore });
