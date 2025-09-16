@@ -24,15 +24,11 @@ import {
   getHighestTile
 } from '../../utils/GameLogic';
 
-// 动态导入 Haptics，避免 H5 环境报错
-let Haptics = null;
-if (Platform.OS !== 'web') {
-  try {
-    Haptics = require('expo-haptics');
-  } catch (error) {
-    console.log('Haptics not available on this platform');
-  }
-}
+// 使用 Platform.select 避免 H5 环境打包错误
+const Haptics = Platform.select({
+  web: null,
+  default: require('expo-haptics'),
+});
 
 const { width: screenWidth } = Dimensions.get('window');
 // H5 适配：根据平台调整棋盘大小
@@ -68,6 +64,7 @@ export default function HomeScreen() {
   const [isSliding, setIsSliding] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [mergingPositions, setMergingPositions] = useState(new Set());
+  const movingRef = useRef(false);
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
 
@@ -136,6 +133,33 @@ export default function HomeScreen() {
     document.addEventListener('keydown', handleKeyPress);
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [state.isAnimating, state.board]);
+
+  // Animate new tiles appearing on the board
+  const animateNewTiles = (prevBoard, newBoard) => {
+    // Find new tiles by comparing boards
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) {
+        const prevValue = prevBoard[row][col];
+        const newValue = newBoard[row][col];
+        
+        // If there's a new tile (was null, now has value)
+        if (prevValue === null && newValue !== null) {
+          const key = `${row}-${col}`;
+          const anim = animatedValues.current[key];
+          
+          if (anim) {
+            // Start from small scale and animate to normal size
+            anim.scale.setValue(0.6);
+            Animated.timing(anim.scale, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }).start();
+          }
+        }
+      }
+    }
+  };
 
   // Compute UI transitions for sliding animation
   const computeTransitionsUIOnly = (prevBoard, nextBoard, direction) => {
@@ -252,7 +276,7 @@ export default function HomeScreen() {
 
   // 对合并落点做放大回弹；默认每段 100ms（0.1s）
   const animateMergeBounce = (mergeTargets, up = 1.12, dur = 100) => {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       if (!mergeTargets || mergeTargets.length === 0) return resolve();
       const anims = [];
 
@@ -261,17 +285,19 @@ export default function HomeScreen() {
         const av = animatedValues.current[key];
         if (!av) continue;
 
-        // 先重置，避免前一次动画遗留
-        av.scale.setValue(1);
-
-        anims.push(
-          Animated.sequence([
-            Animated.timing(av.scale, { toValue: up, duration: dur, useNativeDriver: true }),
-            Animated.timing(av.scale, { toValue: 1,  duration: dur, useNativeDriver: true }),
-          ])
-        );
+        // 停掉上一次动画，重置到 1
+        av.scale.stopAnimation(() => {
+          av.scale.setValue(1);
+          anims.push(
+            Animated.sequence([
+              Animated.timing(av.scale, { toValue: up, duration: dur, useNativeDriver: true }),
+              Animated.timing(av.scale, { toValue: 1,  duration: dur, useNativeDriver: true }),
+            ])
+          );
+        });
       }
 
+      if (anims.length === 0) return resolve();
       Animated.parallel(anims).start(() => resolve());
     });
   };
@@ -297,7 +323,9 @@ export default function HomeScreen() {
   };
 
   const handleMove = useCallback(async (direction) => {
-    if (state.gameState !== 'playing' || state.isAnimating) return;
+    if (state.gameState !== 'playing' || state.isAnimating || movingRef.current) return;
+
+    movingRef.current = true;
 
     const prev = state.board;
     const result = move(state.board, direction);
@@ -305,578 +333,8 @@ export default function HomeScreen() {
     if (!result.isValidMove) {
       // Invalid move - shake animation and haptic
       if (state.hapticsOn && Platform.OS !== 'web') {
-        if (Haptics) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        }
-      }
-      
-      // Shake animation
-      Animated.sequence([
-        Animated.timing(animatedValues.current.board, { 
-          toValue: 10, 
-          duration: 50, 
-          useNativeDriver: true 
-        }),
-        Animated.timing(animatedValues.current.board, { 
-          toValue: -10, 
-          duration: 50, 
-          useNativeDriver: true 
-        }),
-        Animated.timing(animatedValues.current.board, { 
-          toValue: 0, 
-          duration: 50, 
-          useNativeDriver: true 
-        }),
-      ]).start();
-      
-      return;
-    }
-
-    // Generate ghost tiles for sliding animation
-    const transitions = computeTransitionsUIOnly(prev, result.board, direction)
-      .filter(t => !(t.from.r === t.to.r && t.from.c === t.to.c));
-    
-    ghostTilesRef.current = transitions.map(t => ({
-      key: `${t.from.r}-${t.from.c}`,
-      value: prev[t.from.r][t.from.c],
-      from: t.from,
-      to: t.to,
-      anim: new Animated.ValueXY({ x: toX(t.from.c), y: toY(t.from.r) }),
-    }));
-
-    // Set sliding state and animation lock AFTER ghost tiles are prepared
-    setIsSliding(true);
-    
-    // Force a render cycle to ensure ghost tiles are ready before starting animation
-    await new Promise(resolve => {
-      requestAnimationFrame(resolve);
-    });
-    
-    dispatch({ type: 'SET_ANIMATING', payload: true });
-
-    // Update score
-    const newScore = state.score + result.score;
-    dispatch({ type: 'UPDATE_SCORE', payload: newScore });
-
-    // Start sliding animation
-    const slideAnims = ghostTilesRef.current.map(g =>
-      Animated.timing(g.anim, {
-        toValue: { x: toX(g.to.c), y: toY(g.to.r) },
-        duration: 120,
-        useNativeDriver: true,
-      })
-    );
-
-    Animated.parallel(slideAnims).start(async () => {
-      // 1) 计算本次"合并落点"——仅 UI 用
-      const mergeTargets = computeMergeTargets(prev, direction);
-
-      // 2) 提交"合并后的棋盘"（尚未生成新砖）
-      dispatch({ type: 'SET_BOARD', payload: result.board });
-      
-      // 设置合并状态，隐藏合并位置的瓦片
-      if (mergeTargets.length > 0) {
-        const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
-        setMergingPositions(mergePositionKeys);
-        setIsMerging(true);
-      }
-
-      // 清除合并状态
-      setIsMerging(false);
-      setMergingPositions(new Set());
-
-      // 3) 只对"合并落点"弹跳（每段 0.1s）
-      await animateMergeBounce(mergeTargets, 1.12, 100);
-
-      // 4) 生成新砖 & 只对"新增格子"弹入（沿用你已做好的 prev/next 对比）
-      const boardWithNewTile = addRandomTile(result.board);
-      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
-      animateNewTiles(result.board, boardWithNewTile);
-
-      // Clear ghost tiles
-      ghostTilesRef.current = [];
-      setIsSliding(false);
-      dispatch({ type: 'SET_ANIMATING', payload: false });
-
-      setMoveCount(prev => prev + 1);
-
-      // 5) 计分、胜负判定、haptics 等（保持你的原有顺序）
-      // Check win condition
-      if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
-        showWinModal();
-      } else if (checkGameOver(boardWithNewTile)) {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-        await endGame(boardWithNewTile, newScore, false);
-        showLoseModal();
-      }
-
-      // Haptic feedback for valid move
-      if (state.hapticsOn && Platform.OS !== 'web') {
-        if (Haptics) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-      }
-    });
-  }, [state.gameState, state.isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
-
-  // 用 useMemo 重建 PanResponder，避免旧值问题
-  const panResponder = useMemo(() => PanResponder.create({
-    // 尝试尽早接管（动画时不接管）
-    onStartShouldSetPanResponder: () => !isAnimatingRef.current,
-    onMoveShouldSetPanResponder: (_evt, g) => {
-      if (isAnimatingRef.current) return false;
-      const { dx, dy } = g;
-      const THRESHOLD = 20; // 统一阈值
-      return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
-    },
-    // 有子元素（按钮/文字）时，capture 有助于父级接管
-    onStartShouldSetPanResponderCapture: () => !isAnimatingRef.current,
-    onMoveShouldSetPanResponderCapture: (_evt, g) => {
-      if (isAnimatingRef.current) return false;
-      const { dx, dy } = g;
-      const THRESHOLD = 20;
-      return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
-    },
-    onPanResponderRelease: (_evt, g) => {
-      if (isAnimatingRef.current) return;
-      const { dx, dy } = g;
-      const THRESHOLD = 20;
-
-      if (Math.abs(dx) < THRESHOLD && Math.abs(dy) < THRESHOLD) return;
-
-      const dir = Math.abs(dx) >= Math.abs(dy)
-        ? (dx > 0 ? 'right' : 'left')
-        : (dy > 0 ? 'down' : 'up');
-
-      handleMove(dir);
-    },
-    onShouldBlockNativeResponder: () => true,
-  }), [handleMove]); // 只依赖稳定的 handleMove
-
-  const animateNewTiles = (prevBoard, nextBoard) => {
-    // Find new tiles and animate them
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 4; col++) {
-        if (nextBoard[row][col] && !prevBoard[row][col]) {
-          const key = `${row}-${col}`;
-          const anim = animatedValues.current[key];
-          
-          if (anim) {
-            anim.scale.setValue(0);
-            anim.opacity.setValue(0);
-            
-            Animated.parallel([
-              Animated.spring(anim.scale, {
-                toValue: 1,
-                tension: 200,
-                friction: 10,
-                useNativeDriver: true,
-              }),
-              Animated.timing(anim.opacity, {
-                toValue: 1,
-                duration: 200,
-                useNativeDriver: true,
-              }),
-            ]).start();
-          }
-        }
       }
     }
-  };
-
-  const endGame = async (finalBoard, finalScore, won) => {
-    const endTime = Date.now();
-    const duration = gameStartTime ? Math.floor((endTime - gameStartTime) / 1000) : 0;
-    const highestTile = getHighestTile(finalBoard);
-
-    const gameResult = {
-      id: state.currentGame?.id || Date.now().toString(),
-      startedAt: state.currentGame?.startedAt || new Date().toISOString(),
-      endedAt: new Date().toISOString(),
-      durationSec: duration,
-      finalScore,
-      highestTile,
-      moves: moveCount,
-      won,
-    };
-
-    // Update statistics
-    const stats = {
-      maxLevel: Math.max(state.maxLevel, highestTile),
-      maxScore: Math.max(state.maxScore, finalScore),
-      maxTime: won && (state.maxTime === 0 || duration < state.maxTime) ? duration : state.maxTime,
-    };
-
-    dispatch({ type: 'UPDATE_STATS', payload: stats });
-    dispatch({ type: 'ADD_GAME_TO_HISTORY', payload: gameResult });
-
-    // Save to storage
-    await saveGameData({
-      ...stats,
-      gameHistory: [gameResult, ...state.gameHistory].slice(0, 50),
-    });
-  };
-
-  const showWinModal = () => {
-    Alert.alert(
-      '🎉 You Won!',
-      'Congratulations! You reached 2048!\n\nWould you like to continue playing or start a new game?',
-      [
-        {
-          text: 'Continue',
-          onPress: () => dispatch({ type: 'SET_GAME_STATE', payload: 'playing' }),
-        },
-        {
-          text: 'New Game',
-          onPress: () => {
-            endGame(state.board, state.score, true).then(() => {
-              startNewGame();
-            });
-          },
-        },
-      ]
-    );
-  };
-
-  const showLoseModal = () => {
-    Alert.alert(
-      '😞 Game Over',
-      `Final Score: ${state.score}\nHighest Tile: ${getHighestTile(state.board)}\n\nBetter luck next time!`,
-      [
-        {
-          text: 'New Game',
-          onPress: startNewGame,
-        },
-        {
-          text: 'View History',
-          onPress: () => router.push('/history'),
-        },
-      ]
-    );
-  };
-
-  const getTileStyle = (value) => {
-    // Original 2048 color scheme
-    const tileColors = {
-      2: { backgroundColor: '#eee4da', color: '#776e65' },
-      4: { backgroundColor: '#ede0c8', color: '#776e65' },
-      8: { backgroundColor: '#f2b179', color: '#f9f6f2' },
-      16: { backgroundColor: '#f59563', color: '#f9f6f2' },
-      32: { backgroundColor: '#f67c5f', color: '#f9f6f2' },
-      64: { backgroundColor: '#f65e3b', color: '#f9f6f2' },
-      128: { backgroundColor: '#edcf72', color: '#f9f6f2', fontSize: 45 },
-      256: { backgroundColor: '#edcc61', color: '#f9f6f2', fontSize: 45 },
-      512: { backgroundColor: '#edc850', color: '#f9f6f2', fontSize: 45 },
-      1024: { backgroundColor: '#edc53f', color: '#f9f6f2', fontSize: 35 },
-      2048: { backgroundColor: '#edc22e', color: '#f9f6f2', fontSize: 35 },
-      4096: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
-      8192: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
-    };
-
-    const tileClass = tileColors[value] || { 
-      backgroundColor: '#3c3a32', 
-      color: '#f9f6f2', 
-      fontSize: 30 
-    };
-    
-    return tileClass;
-  };
-
-  const getTileFontSize = (value) => {
-    if (value < 100) return 55;
-    if (value < 1000) return 45;
-    if (value < 10000) return 35;
-    return 30;
-  };
-
-  if (state.isLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      </SafeAreaView>
-    );
   }
-
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* H5 适配：添加状态栏 */}
-      {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.scoreContainer}>
-          <View style={styles.scoreBox}>
-            <Text style={styles.scoreLabel}>SCORE</Text>
-            <Text style={styles.scoreValue}>{state.score}</Text>
-          </View>
-          <View style={styles.scoreBox}>
-            <Text style={styles.scoreLabel}>BEST</Text>
-            <Text style={styles.scoreValue}>{state.bestScore}</Text>
-          </View>
-        </View>
-        <TouchableOpacity style={styles.newGameButton} onPress={startNewGame}>
-          <Ionicons name="refresh" size={16} color="#ffffff" />
-          <Text style={styles.newGameText}>New Game</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Game Board */}
-      <View style={styles.gameContainer}>
-        <View style={styles.instructions}>
-          <Text style={styles.instructionsText}>
-            Join the tiles, get to 2048!
-          </Text>
-          <TouchableOpacity onPress={() => router.push('/history')}>
-            <Text style={styles.historyLink}>View History</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ position: 'relative' }}>
-          {/* 手势层：只覆盖棋盘区域 */}
-          <View
-            style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, zIndex: 10 }}
-            pointerEvents="box-only"
-            collapsable={false}
-            {...panResponder.panHandlers}
-          />
-          {/* 棋盘本体 */}
-          <Animated.View
-            style={[
-              styles.board,
-              { 
-                width: BOARD_SIZE, 
-                height: BOARD_SIZE,
-                transform: [{ translateX: animatedValues.current.board || new Animated.Value(0) }]
-              }
-            ]}
-          >
-            {/* Background grid */}
-            {Array.from({ length: 16 }).map((_, i) => {
-              const r = Math.floor(i / GRID_ROW_CELLS), c = i % GRID_ROW_CELLS;
-              return (
-                <View
-                  key={i}
-                  style={[styles.gridCell, { width: TILE_SIZE, height: TILE_SIZE, left: toX(c), top: toY(r) }]}
-                />
-              );
-            })}
-
-            {/* Game tiles */}
-            {state.board.map((row, rowIndex) =>
-              row.map((value, colIndex) => {
-                if (!value) return null;
-
-                const key = `${rowIndex}-${colIndex}`;
-                const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
-                const movingOldKey = `${rowIndex}-${colIndex}`;
-                const isHidden = (isSliding && ghostTilesRef.current.some(g => g.key === movingOldKey)) ||
-                                 (isMerging && mergingPositions.has(movingOldKey));
-
-                return (
-                  <Animated.View
-                    key={key}
-                    style={[
-                      styles.tile,
-                      getTileStyle(value),
-                      {
-                        width: TILE_SIZE,
-                        height: TILE_SIZE,
-                        left: toX(colIndex),
-                        top: toY(rowIndex),
-                        opacity: isHidden ? 0 : anim.opacity,
-                        zIndex: isHidden ? -1 : 1,
-                        transform: [{ scale: anim.scale }],
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.tileText, { fontSize: value > 512 ? 24 : 32 }]}>
-                      {value}
-                    </Text>
-                  </Animated.View>
-                );
-              })
-            )}
-
-            {/* Ghost tiles overlay for sliding animation */}
-            <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, left: 0, top: 0, zIndex: 10 }}>
-              {isSliding && ghostTilesRef.current.map(g => (
-                <Animated.View
-                  key={`ghost-${g.key}`}
-                  style={[
-                    styles.tile,
-                    getTileStyle(g.value),
-                    {
-                      width: TILE_SIZE,
-                      height: TILE_SIZE,
-                      zIndex: 5,
-                      transform: [{ translateX: g.anim.x }, { translateY: g.anim.y }],
-                    },
-                  ]}
-                >
-                  <Text style={[styles.tileText, { fontSize: g.value > 512 ? 24 : 32 }]}>{g.value}</Text>
-                </Animated.View>
-              ))}
-            </View>
-          </Animated.View>
-        </View>
-
-        {/* Game instructions for mobile */}
-        <View style={styles.controls}>
-          <Text style={styles.controlsText}>
-            {Platform.OS === 'web' 
-              ? 'Use arrow keys or mouse swipe to move tiles' 
-              : 'Swipe in any direction to move tiles'}
-          </Text>
-        </View>
-      </View>
-    </SafeAreaView>
-  );
+  )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#faf8ef',
-    paddingHorizontal: Platform.OS === 'web' ? 16 : 20,
-    // H5 适配：添加最小高度
-    ...(Platform.OS === 'web' && {
-      minHeight: '100vh',
-      maxWidth: 600,
-      marginHorizontal: 'auto',
-    }),
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 18,
-    color: '#776e65',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Platform.OS === 'web' ? 16 : 20,
-    // H5 适配：添加顶部间距
-    ...(Platform.OS === 'web' && {
-      paddingTop: 20,
-    }),
-  },
-  scoreContainer: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  scoreBox: {
-    backgroundColor: '#bbada0',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: Platform.OS === 'web' ? 80 : 70,
-    alignItems: 'center',
-  },
-  scoreLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#eee4da',
-    marginBottom: 2,
-  },
-  scoreValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  newGameButton: {
-    backgroundColor: '#8f7a66',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    // H5 适配：添加鼠标悬停效果
-    ...(Platform.OS === 'web' && {
-      cursor: 'pointer',
-    }),
-  },
-  newGameText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  gameContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  instructions: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  instructionsText: {
-    fontSize: Platform.OS === 'web' ? 18 : 16,
-    color: '#776e65',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  historyLink: {
-    fontSize: 14,
-    color: '#667eea',
-    textDecorationLine: 'underline',
-    // H5 适配：添加鼠标悬停效果
-    ...(Platform.OS === 'web' && {
-      cursor: 'pointer',
-    }),
-  },
-  board: {
-    backgroundColor: '#bbada0', // Original game board color
-    borderRadius: 6,
-    padding: GRID_SPACING,
-    position: 'relative',
-    marginBottom: 20,
-  },
-  gridCell: {
-    backgroundColor: '#cdc1b4', // Original empty cell color
-    borderRadius: TILE_BORDER_RADIUS,
-    position: 'absolute',
-  },
-  tile: {
-    borderRadius: TILE_BORDER_RADIUS,
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-    // H5 适配：添加用户选择禁用
-    ...(Platform.OS === 'web' && {
-      userSelect: 'none',
-      WebkitUserSelect: 'none',
-    }),
-  },
-  tileText: {
-    fontWeight: '700', // Bold font weight like original
-    textAlign: 'center',
-    fontFamily: Platform.select({
-      ios: 'Helvetica Neue',
-      android: 'Roboto',
-      web: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    }),
-    // H5 适配：添加用户选择禁用
-    ...(Platform.OS === 'web' && {
-      userSelect: 'none',
-      WebkitUserSelect: 'none',
-    }),
-  },
-  controls: {
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'web' ? 16 : 20,
-    paddingBottom: Platform.OS === 'web' ? 20 : 0,
-  },
-  controlsText: {
-    fontSize: Platform.OS === 'web' ? 16 : 14,
-    color: '#8f7a66',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});
