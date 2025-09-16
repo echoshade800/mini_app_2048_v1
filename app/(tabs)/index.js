@@ -255,8 +255,8 @@ export default function HomeScreen() {
     return new Promise(resolve => {
       if (!mergeTargets || mergeTargets.length === 0) return resolve();
       
-      // 创建过渡动画：先显示一个缩小的占位瓦片，然后放大到正常大小
-      const transitionAnims = [];
+      // 首先让合并后的瓦片从透明渐变到可见
+      const fadeInAnims = [];
       const bounceAnims = [];
 
       for (const { r, c } of mergeTargets) {
@@ -264,39 +264,39 @@ export default function HomeScreen() {
         const av = animatedValues.current[key];
         if (!av) continue;
 
-        // 重置动画值 - 从小尺寸开始，立即可见
-        av.scale.setValue(0.3); // 从30%大小开始
-        av.opacity.setValue(1); // 立即可见，无空档
+        // 重置动画值
+        av.scale.setValue(1);
+        av.opacity.setValue(0); // 从透明开始
 
-        // 快速过渡到正常大小
-        transitionAnims.push(
-          Animated.timing(av.scale, { 
+        // 先淡入
+        fadeInAnims.push(
+          Animated.timing(av.opacity, { 
             toValue: 1, 
-            duration: 60, 
+            duration: 80, 
             useNativeDriver: true 
           })
         );
 
-        // 放大回弹（放大到1.2倍，覆盖格子边缘）
+        // 然后放大回弹（放大到1.2倍，覆盖格子边缘）
         bounceAnims.push(
           Animated.sequence([
             Animated.timing(av.scale, { 
               toValue: 1.2, 
-              duration: 100, 
+              duration: 120, 
               useNativeDriver: true 
             }),
             Animated.timing(av.scale, { 
               toValue: 1, 
-              duration: 100, 
+              duration: 120, 
               useNativeDriver: true 
             }),
           ])
         );
       }
 
-      // 先执行快速过渡动画
-      Animated.parallel(transitionAnims).start(() => {
-        // 过渡完成后执行放大回弹动画
+      // 先执行淡入动画
+      Animated.parallel(fadeInAnims).start(() => {
+        // 淡入完成后执行放大回弹动画
         Animated.parallel(bounceAnims).start(() => resolve());
       });
     });
@@ -412,11 +412,11 @@ export default function HomeScreen() {
       dispatch({ type: 'SET_BOARD', payload: result.board });
       
       // 短暂延迟，确保DOM更新完成
-      await new Promise(resolve => setTimeout(resolve, 20));
+      await new Promise(resolve => setTimeout(resolve, 50));
       
       // 执行合并动画（淡入 + 放大回弹）
       if (mergeTargets.length > 0) {
-        await animateMergeBounce(mergeTargets, 1.2, 100);
+        await animateMergeBounce(mergeTargets, 1.2, 120);
       }
 
       // 清除合并状态
