@@ -316,108 +316,130 @@ export default function HomeScreen() {
     setAnimationPhase('animating');
     dispatch({ type: 'SET_ANIMATING', payload: true });
     
-    // 3. 隐藏将要移动的真实瓦片（只用 opacity）
-    const movingPositions = new Set(transitions.map(t => `${t.from.r}-${t.from.c}`));
-    for (const posKey of movingPositions) {
-      const anim = animatedValues.current[posKey];
-      if (anim) {
-        anim.opacity.setValue(0);
+    // 3. 移动端优化：使用 requestAnimationFrame 确保渲染同步
+    const executeAnimation = () => {
+      // 隐藏将要移动的真实瓦片（只用 opacity）
+      const movingPositions = new Set(transitions.map(t => `${t.from.r}-${t.from.c}`));
+      for (const posKey of movingPositions) {
+        const anim = animatedValues.current[posKey];
+        if (anim) {
+          anim.opacity.setValue(0);
+        }
       }
+      
+      ghostTilesRef.current = transitions.map(t => ({
+        key: `${t.from.r}-${t.from.c}`,
+        value: prev[t.from.r][t.from.c],
+        from: t.from,
+        to: t.to,
+        anim: new Animated.ValueXY({ x: toX(t.from.c), y: toY(t.from.r) }),
+        scale: new Animated.Value(1),
+      }));
+      
+      // 强制重新渲染以确保幽灵瓦片立即显示
+      setAnimationPhase('animating');
+    };
+    
+    // 移动端使用双重 requestAnimationFrame 确保渲染同步
+    if (Platform.OS !== 'web') {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          executeAnimation();
+          startGhostAnimation();
+        });
+      });
+    } else {
+      executeAnimation();
+      startGhostAnimation();
     }
     
-    ghostTilesRef.current = transitions.map(t => ({
-      key: `${t.from.r}-${t.from.c}`,
-      value: prev[t.from.r][t.from.c],
-      from: t.from,
-      to: t.to,
-      anim: new Animated.ValueXY({ x: toX(t.from.c), y: toY(t.from.r) }),
-      scale: new Animated.Value(1),
-    }));
+    function startGhostAnimation() {
+    function startGhostAnimation() {
+      // 4. 更新分数（但不提交棋盘）
+      const newScore = state.score + result.score;
+      dispatch({ type: 'UPDATE_SCORE', payload: newScore });
 
-    // 4. 更新分数（但不提交棋盘）
-    const newScore = state.score + result.score;
-    dispatch({ type: 'UPDATE_SCORE', payload: newScore });
-
-    // 5. 统一时间线动画
-    masterTimeline.current.setValue(0);
-    
-    const slideAnims = ghostTilesRef.current.map(g => 
-      Animated.timing(g.anim, {
-        toValue: { x: toX(g.to.c), y: toY(g.to.r) },
-        duration: 200,
-        useNativeDriver: true,
-      })
-    );
-    
-    // 合并位置的幽灵瓦片做放大回弹
-    const mergeAnims = ghostTilesRef.current
-      .filter(g => mergeTargets.some(mt => mt.r === g.to.r && mt.c === g.to.c))
-      .map(g => 
-        Animated.sequence([
-          Animated.delay(120), // 滑动完成后开始
-          Animated.timing(g.scale, {
-            toValue: 1.2,
-            duration: 60,
-            useNativeDriver: true,
-          }),
-          Animated.timing(g.scale, {
-            toValue: 1,
-            duration: 60,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-
-    // 6. 执行所有动画
-    Animated.parallel([
-      ...slideAnims,
-      ...mergeAnims,
-    ]).start(async () => {
-      // 7. 动画完成后提交棋盘
-      ghostTilesRef.current = [];
-      dispatch({ type: 'SET_BOARD', payload: result.board });
+      // 5. 统一时间线动画
+      masterTimeline.current.setValue(0);
       
-      // 8. 恢复所有瓦片的透明度（不做缩放）
-      for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 4; col++) {
-          const key = `${row}-${col}`;
-          const anim = animatedValues.current[key];
-          if (anim) {
-            anim.opacity.setValue(1);
-            anim.scale.setValue(1);
+      const slideAnims = ghostTilesRef.current.map(g => 
+        Animated.timing(g.anim, {
+          toValue: { x: toX(g.to.c), y: toY(g.to.r) },
+          duration: 200,
+          useNativeDriver: true,
+        })
+      );
+      
+      // 合并位置的幽灵瓦片做放大回弹
+      const mergeAnims = ghostTilesRef.current
+        .filter(g => mergeTargets.some(mt => mt.r === g.to.r && mt.c === g.to.c))
+        .map(g => 
+          Animated.sequence([
+            Animated.delay(120), // 滑动完成后开始
+            Animated.timing(g.scale, {
+              toValue: 1.2,
+              duration: 60,
+              useNativeDriver: true,
+            }),
+            Animated.timing(g.scale, {
+              toValue: 1,
+              duration: 60,
+              useNativeDriver: true,
+            }),
+          ])
+        );
+
+      // 6. 执行所有动画
+      Animated.parallel([
+        ...slideAnims,
+        ...mergeAnims,
+      ]).start(async () => {
+        // 7. 动画完成后提交棋盘
+        ghostTilesRef.current = [];
+        dispatch({ type: 'SET_BOARD', payload: result.board });
+        
+        // 8. 恢复所有瓦片的透明度（不做缩放）
+        for (let row = 0; row < 4; row++) {
+          for (let col = 0; col < 4; col++) {
+            const key = `${row}-${col}`;
+            const anim = animatedValues.current[key];
+            if (anim) {
+              anim.opacity.setValue(1);
+              anim.scale.setValue(1);
+            }
           }
         }
-      }
 
-      // 9. 生成新瓦片并执行出生动画
-      const boardWithNewTile = addRandomTile(result.board);
-      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
-      animateNewTiles(result.board, boardWithNewTile);
+        // 9. 生成新瓦片并执行出生动画
+        const boardWithNewTile = addRandomTile(result.board);
+        dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
+        animateNewTiles(result.board, boardWithNewTile);
 
-      // 10. 重置动画状态
-      setAnimationPhase('idle');
-      dispatch({ type: 'SET_ANIMATING', payload: false });
+        // 10. 重置动画状态
+        setAnimationPhase('idle');
+        dispatch({ type: 'SET_ANIMATING', payload: false });
 
-      setMoveCount(prev => prev + 1);
+        setMoveCount(prev => prev + 1);
 
-      // 11. 胜负判定和触觉反馈
-      // Check win condition
-      if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
-        showWinModal();
-      } else if (checkGameOver(boardWithNewTile)) {
-        dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-        await endGame(boardWithNewTile, newScore, false);
-        showLoseModal();
-      }
-
-      // Haptic feedback for valid move
-      if (state.hapticsOn && Platform.OS !== 'web') {
-        if (Haptics) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        // 11. 胜负判定和触觉反馈
+        // Check win condition
+        if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
+          dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
+          showWinModal();
+        } else if (checkGameOver(boardWithNewTile)) {
+          dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
+          await endGame(boardWithNewTile, newScore, false);
+          showLoseModal();
         }
-      }
-    });
+
+        // Haptic feedback for valid move
+        if (state.hapticsOn && Platform.OS !== 'web') {
+          if (Haptics) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+        }
+      });
+    }
   }, [animationPhase, state.gameState, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
   // 用 useMemo 重建 PanResponder，避免旧值问题
@@ -711,6 +733,7 @@ export default function HomeScreen() {
                     {
                       width: TILE_SIZE,
                       height: TILE_SIZE,
+                      opacity: 1, // 确保幽灵瓦片始终可见
                       transform: [
                         { translateX: g.anim.x }, 
                         { translateY: g.anim.y },
