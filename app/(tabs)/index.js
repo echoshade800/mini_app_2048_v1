@@ -23,9 +23,6 @@ import {
   checkGameOver,
   getHighestTile
 } from '../../utils/GameLogic';
-import Piece from '../../src/game/Piece';
-import PieceDraw from '../../src/game/render/PieceDraw';
-import { boardToPieces, piecesToBoard, movePieceTo, mergePieces } from '../../src/game/boardProxy';
 
 // 动态导入 Haptics，避免 H5 环境报错
 let Haptics = null;
@@ -59,33 +56,6 @@ const cellPosition = (x) => {
 const toX = (col) => cellPosition(col);
 const toY = (row) => cellPosition(row);
 
-// Layout configuration for decorators
-const layout = {
-  BOARD_SIZE,
-  TILE_SIZE,
-  PADDING: GRID_SPACING,
-  GAP: GRID_SPACING,
-  toX,
-  toY,
-  tileStyle: {
-    borderRadius: TILE_BORDER_RADIUS,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tileTextStyle: {
-    fontWeight: '700',
-    textAlign: 'center',
-    fontFamily: Platform.select({
-      ios: 'Helvetica Neue',
-      android: 'Roboto',
-      web: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    }),
-    ...(Platform.OS === 'web' && {
-      userSelect: 'none',
-      WebkitUserSelect: 'none',
-    }),
-  },
-};
 /**
  * Home Screen - Main Game Board
  * Purpose: Play 2048 + quick actions (score, best, new game)
@@ -95,10 +65,11 @@ export default function HomeScreen() {
   const { state, dispatch, saveGameData } = useGame();
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [pieces, setPieces] = useState([]);
-  const [movingSet, setMovingSet] = useState(new Set());
+  const [isSliding, setIsSliding] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergingPositions, setMergingPositions] = useState(new Set());
   const animatedValues = useRef({});
+  const ghostTilesRef = useRef([]);
 
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
   const isAnimatingRef = useRef(state.isAnimating);
@@ -139,9 +110,6 @@ export default function HomeScreen() {
     // Initialize board if empty
     if (state.board.every(row => row.every(cell => cell === null))) {
       startNewGame();
-    } else {
-      // Convert existing board to pieces
-      setPieces(boardToPieces(state.board));
     }
   }, [state.isLoading, state.showOnboarding]);
 
@@ -150,7 +118,7 @@ export default function HomeScreen() {
     if (Platform.OS !== 'web') return;
 
     const handleKeyPress = (event) => {
-      if (isAnimating) return;
+      if (state.isAnimating) return;
       
       const keyMap = {
         ArrowLeft: 'left',
@@ -167,53 +135,44 @@ export default function HomeScreen() {
 
     document.addEventListener('keydown', handleKeyPress);
     return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [isAnimating, state.board]);
+  }, [state.isAnimating, state.board]);
 
-  // 计算移动和合并的转换
-  const computeTransitions = (prevBoard, nextBoard, direction) => {
+  // Compute UI transitions for sliding animation
+  const computeTransitionsUIOnly = (prevBoard, nextBoard, direction) => {
     const moves = [];
-    const merges = [];
     const N = 4;
 
     const processLine = (cells, isRow, fixedIndex) => {
       const nonEmpty = cells.filter(x => x.v != null);
+      const targets = [];
       let i = 0;
-      let destIndex = 0;
-      
       while (i < nonEmpty.length) {
         if (i + 1 < nonEmpty.length && nonEmpty[i].v === nonEmpty[i+1].v) {
-          // 合并
-          const targetPos = isRow
-            ? { r: fixedIndex, c: (direction === 'left') ? destIndex : (N - 1 - destIndex) }
-            : { r: (direction === 'up') ? destIndex : (N - 1 - destIndex), c: fixedIndex };
-            
-          merges.push({
-            fromA: { r: nonEmpty[i].r, c: nonEmpty[i].c },
-            fromB: { r: nonEmpty[i+1].r, c: nonEmpty[i+1].c },
-            to: targetPos,
-            value: nonEmpty[i].v * 2
-          });
-          
-          destIndex++;
+          targets.push({v: nonEmpty[i].v * 2, froms: [nonEmpty[i], nonEmpty[i+1]]});
           i += 2;
         } else {
-          // 普通移动
-          const targetPos = isRow
-            ? { r: fixedIndex, c: (direction === 'left') ? destIndex : (N - 1 - destIndex) }
-            : { r: (direction === 'up') ? destIndex : (N - 1 - destIndex), c: fixedIndex };
-            
-          if (nonEmpty[i].r !== targetPos.r || nonEmpty[i].c !== targetPos.c) {
-            moves.push({
-              from: { r: nonEmpty[i].r, c: nonEmpty[i].c },
-              to: targetPos,
-              value: nonEmpty[i].v
-            });
-          }
-          
-          destIndex++;
+          targets.push({v: nonEmpty[i].v, froms: [nonEmpty[i]]});
           i += 1;
         }
       }
+      
+      targets.forEach((t, idx) => {
+        let destIndex = idx;
+        // For right and down movements, reverse the destination index
+        if ((isRow && direction === 'right') || (!isRow && direction === 'down')) {
+          destIndex = N - 1 - idx;
+        }
+        
+        t.froms.forEach(src => {
+          moves.push({
+            from: { r: src.r, c: src.c },
+            to: isRow
+              ? { r: fixedIndex, c: destIndex }
+              : { r: destIndex,  c: fixedIndex },
+            value: src.v
+          });
+        });
+      });
     };
 
     if (direction === 'left' || direction === 'right') {
@@ -235,10 +194,87 @@ export default function HomeScreen() {
         processLine(line, false, c);
       }
     }
-    
-    return { moves, merges };
+    return moves;
   };
 
+  // 计算合并目标位置
+  const computeMergeTargets = (prevBoard, direction) => {
+    const N = 4;
+    const mergeTargets = [];
+
+    const processLine = (cells, isRow, fixedIndex) => {
+      const nonEmpty = cells.filter(x => x.v != null);
+      let i = 0, dest = 0;
+      while (i < nonEmpty.length) {
+        if (i + 1 < nonEmpty.length && nonEmpty[i].v === nonEmpty[i + 1].v) {
+          // 合并发生，计算目标位置
+          let targetPos;
+          if (isRow) {
+            targetPos = direction === 'left' 
+              ? { r: fixedIndex, c: dest }
+              : { r: fixedIndex, c: N - 1 - dest };
+          } else {
+            targetPos = direction === 'up'
+              ? { r: dest, c: fixedIndex }
+              : { r: N - 1 - dest, c: fixedIndex };
+          }
+          mergeTargets.push(targetPos);
+          dest += 1;
+          i += 2;
+        } else {
+          dest += 1;
+          i += 1;
+        }
+      }
+    };
+
+    if (direction === 'left' || direction === 'right') {
+      for (let r = 0; r < N; r++) {
+        const line = [];
+        for (let c = 0; c < N; c++) {
+          const cc = direction === 'left' ? c : (N - 1 - c);
+          line.push({ v: prevBoard[r][cc], r, c: cc });
+        }
+        processLine(line, true, r);
+      }
+    } else {
+      for (let c = 0; c < N; c++) {
+        const line = [];
+        for (let r = 0; r < N; r++) {
+          const rr = direction === 'up' ? r : (N - 1 - r);
+          line.push({ v: prevBoard[rr][c], r: rr, c });
+        }
+        processLine(line, false, c);
+      }
+    }
+    return mergeTargets;
+  };
+
+  // 对合并落点做放大回弹；默认每段 100ms（0.1s）
+  const animateMergeBounce = (mergeTargets, up = 1.12, dur = 100) => {
+    return new Promise(resolve => {
+      if (!mergeTargets || mergeTargets.length === 0) return resolve();
+      const anims = [];
+
+      for (const { r, c } of mergeTargets) {
+        const key = `${r}-${c}`;
+        const av = animatedValues.current[key];
+        if (!av) continue;
+
+        // 先重置，避免前一次动画遗留
+        av.scale.setValue(1);
+
+        anims.push(
+          Animated.sequence([
+            Animated.timing(av.scale, { toValue: up, duration: dur, useNativeDriver: true }),
+            Animated.timing(av.scale, { toValue: 1,  duration: dur, useNativeDriver: true }),
+          ])
+        );
+      }
+
+      Animated.parallel(anims).start(() => resolve());
+    });
+  };
 
   const startNewGame = () => {
     const newBoard = initializeBoard();
@@ -249,14 +285,11 @@ export default function HomeScreen() {
     };
 
     dispatch({ type: 'NEW_GAME', payload: { board: newBoard, gameData } });
-    setPieces(boardToPieces(newBoard));
     setGameStartTime(Date.now());
     setMoveCount(0);
 
-    // 为新瓦片添加弹入动画
-    setTimeout(() => {
-      animateNewTiles(createEmptyBoard(), newBoard);
-    }, 100);
+    // Animate new tiles
+    animateNewTiles(createEmptyBoard(), newBoard);
   };
 
   const createEmptyBoard = () => {
@@ -264,7 +297,7 @@ export default function HomeScreen() {
   };
 
   const handleMove = useCallback(async (direction) => {
-    if (state.gameState !== 'playing' || isAnimating) return;
+    if (state.gameState !== 'playing' || state.isAnimating) return;
 
     const prev = state.board;
     const result = move(state.board, direction);
@@ -299,120 +332,114 @@ export default function HomeScreen() {
       return;
     }
 
-    // 计算移动和合并
-    const { moves, merges } = computeTransitions(prev, result.board, direction);
+    // Generate ghost tiles for sliding animation
+    const transitions = computeTransitionsUIOnly(prev, result.board, direction)
+      .filter(t => !(t.from.r === t.to.r && t.from.c === t.to.c));
     
-    // 创建装饰器棋盘
-    const newPieces = boardToPieces(prev);
-    const movingPositions = new Set();
+    ghostTilesRef.current = transitions.map(t => ({
+      key: `${t.from.r}-${t.from.c}`,
+      value: prev[t.from.r][t.from.c],
+      from: t.from,
+      to: t.to,
+      anim: new Animated.ValueXY({ x: toX(t.from.c), y: toY(t.from.r) }),
+    }));
+
+    // Set sliding state and animation lock AFTER ghost tiles are prepared
+    setIsSliding(true);
     
-    // 处理普通移动
-    moves.forEach(moveData => {
-      movePieceTo(newPieces, moveData.from, moveData.to, layout);
-      movingPositions.add(`${moveData.from.r}-${moveData.from.c}`);
+    // Force a render cycle to ensure ghost tiles are ready before starting animation
+    await new Promise(resolve => {
+      requestAnimationFrame(resolve);
     });
     
-    // 处理合并
-    merges.forEach(mergeData => {
-      mergePieces(newPieces, mergeData.fromA, mergeData.fromB, mergeData.to, direction, layout);
-      movingPositions.add(`${mergeData.fromA.r}-${mergeData.fromA.c}`);
-      movingPositions.add(`${mergeData.fromB.r}-${mergeData.fromB.c}`);
-    });
-    
-    // 设置动画状态
-    setIsAnimating(true);
-    setMovingSet(movingPositions);
-    setPieces(newPieces);
+    dispatch({ type: 'SET_ANIMATING', payload: true });
 
     // Update score
     const newScore = state.score + result.score;
     dispatch({ type: 'UPDATE_SCORE', payload: newScore });
 
-    // 等待一帧确保装饰器渲染
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    
-    // 播放所有动画
-    const allAnimations = [];
-    let completedAnimations = 0;
-    const totalAnimations = moves.length + merges.length;
-    
-    const onAnimationComplete = async () => {
-      completedAnimations++;
-      if (completedAnimations === totalAnimations) {
-        // 所有动画完成，提交最终棋盘
-        dispatch({ type: 'SET_BOARD', payload: result.board });
-        setPieces(boardToPieces(result.board));
-        
-        // 生成新瓦片
-        const boardWithNewTile = addRandomTile(result.board);
-        dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
-        setPieces(boardToPieces(boardWithNewTile));
-        animateNewTiles(result.board, boardWithNewTile);
-        
-        // 清理状态
-        setIsAnimating(false);
-        setMovingSet(new Set());
-        setMoveCount(prev => prev + 1);
-        
-        // 检查游戏状态
-        if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
-          dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
-          showWinModal();
-        } else if (checkGameOver(boardWithNewTile)) {
-          dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-          await endGame(boardWithNewTile, newScore, false);
-          showLoseModal();
-        }
-        
-        // Haptic feedback
-        if (state.hapticsOn && Platform.OS !== 'web') {
-          if (Haptics) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
+    // Start sliding animation
+    const slideAnims = ghostTilesRef.current.map(g =>
+      Animated.timing(g.anim, {
+        toValue: { x: toX(g.to.c), y: toY(g.to.r) },
+        duration: 120,
+        useNativeDriver: true,
+      })
+    );
+
+    Animated.parallel(slideAnims).start(async () => {
+      // 1) 计算本次"合并落点"——仅 UI 用
+      const mergeTargets = computeMergeTargets(prev, direction);
+
+      // 2) 提交"合并后的棋盘"（尚未生成新砖）
+      dispatch({ type: 'SET_BOARD', payload: result.board });
+      
+      // 设置合并状态，隐藏合并位置的瓦片
+      if (mergeTargets.length > 0) {
+        const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
+        setMergingPositions(mergePositionKeys);
+        setIsMerging(true);
+      }
+
+      // 清除合并状态
+      setIsMerging(false);
+      setMergingPositions(new Set());
+
+      // 3) 只对"合并落点"弹跳（每段 0.1s）
+      await animateMergeBounce(mergeTargets, 1.12, 100);
+
+      // 4) 生成新砖 & 只对"新增格子"弹入（沿用你已做好的 prev/next 对比）
+      const boardWithNewTile = addRandomTile(result.board);
+      dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
+      animateNewTiles(result.board, boardWithNewTile);
+
+      // Clear ghost tiles
+      ghostTilesRef.current = [];
+      setIsSliding(false);
+      dispatch({ type: 'SET_ANIMATING', payload: false });
+
+      setMoveCount(prev => prev + 1);
+
+      // 5) 计分、胜负判定、haptics 等（保持你的原有顺序）
+      // Check win condition
+      if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
+        dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
+        showWinModal();
+      } else if (checkGameOver(boardWithNewTile)) {
+        dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
+        await endGame(boardWithNewTile, newScore, false);
+        showLoseModal();
+      }
+
+      // Haptic feedback for valid move
+      if (state.hapticsOn && Platform.OS !== 'web') {
+        if (Haptics) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
       }
-    };
-    
-    const onAlmostEnd = () => {
-      // 在合并动画90%时触发，用于生成新瓦片的时机控制
-    };
-    
-    // 播放移动动画
-    newPieces.forEach((row, r) => {
-      row.forEach((piece, c) => {
-        if (piece && typeof piece.play === 'function') {
-          piece.play(onAnimationComplete);
-        }
-      });
     });
-    
-    // 如果没有动画，直接完成
-    if (totalAnimations === 0) {
-      onAnimationComplete();
-    }
-    
-  }, [state.gameState, isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
+  }, [state.gameState, state.isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
   // 用 useMemo 重建 PanResponder，避免旧值问题
   const panResponder = useMemo(() => PanResponder.create({
     // 尝试尽早接管（动画时不接管）
-    onStartShouldSetPanResponder: () => !isAnimating,
+    onStartShouldSetPanResponder: () => !isAnimatingRef.current,
     onMoveShouldSetPanResponder: (_evt, g) => {
-      if (isAnimating) return false;
+      if (isAnimatingRef.current) return false;
       const { dx, dy } = g;
       const THRESHOLD = 20; // 统一阈值
       return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
     },
     // 有子元素（按钮/文字）时，capture 有助于父级接管
-    onStartShouldSetPanResponderCapture: () => !isAnimating,
+    onStartShouldSetPanResponderCapture: () => !isAnimatingRef.current,
     onMoveShouldSetPanResponderCapture: (_evt, g) => {
-      if (isAnimating) return false;
+      if (isAnimatingRef.current) return false;
       const { dx, dy } = g;
       const THRESHOLD = 20;
       return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
     },
     onPanResponderRelease: (_evt, g) => {
-      if (isAnimating) return;
+      if (isAnimatingRef.current) return;
       const { dx, dy } = g;
       const THRESHOLD = 20;
 
@@ -425,7 +452,7 @@ export default function HomeScreen() {
       handleMove(dir);
     },
     onShouldBlockNativeResponder: () => true,
-  }), [handleMove, isAnimating]);
+  }), [handleMove]); // 只依赖稳定的 handleMove
 
   const animateNewTiles = (prevBoard, nextBoard) => {
     // Find new tiles and animate them
@@ -560,6 +587,7 @@ export default function HomeScreen() {
     if (value < 100) return 55;
     if (value < 1000) return 45;
     if (value < 10000) return 35;
+    return 30;
   };
 
   if (state.isLoading) {
@@ -636,43 +664,62 @@ export default function HomeScreen() {
               );
             })}
 
-            {/* 统一渲染：装饰器 + 静态瓦片 */}
-            {pieces.map((row, r) =>
-              row.map((cell, c) => {
-                if (!cell) return null;
-                
-                const key = `${r}-${c}`;
-                const shouldHide = isAnimating && movingSet.has(key);
-                
-                // 如果是装饰器，直接调用render
-                if (typeof cell.render === 'function') {
-                  const element = cell.render();
-                  if (Array.isArray(element)) {
-                    return <React.Fragment key={key}>{element}</React.Fragment>;
-                  }
-                  return React.cloneElement(element, { key });
-                }
-                
-                // 普通Piece，用PieceDraw渲染
-                const renderer = new PieceDraw(cell);
-                const anim = animatedValues.current[key] || { 
-                  scale: new Animated.Value(1), 
-                  opacity: new Animated.Value(1) 
-                };
-                
-                const element = renderer.render({
-                  row: r,
-                  col: c,
-                  layout,
-                  anim: shouldHide ? { 
-                    ...anim, 
-                    opacity: new Animated.Value(0) 
-                  } : anim
-                });
-                
-                return React.cloneElement(element, { key });
+            {/* Game tiles */}
+            {state.board.map((row, rowIndex) =>
+              row.map((value, colIndex) => {
+                if (!value) return null;
+
+                const key = `${rowIndex}-${colIndex}`;
+                const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
+                const movingOldKey = `${rowIndex}-${colIndex}`;
+                const isHidden = (isSliding && ghostTilesRef.current.some(g => g.key === movingOldKey)) ||
+                                 (isMerging && mergingPositions.has(movingOldKey));
+
+                return (
+                  <Animated.View
+                    key={key}
+                    style={[
+                      styles.tile,
+                      getTileStyle(value),
+                      {
+                        width: TILE_SIZE,
+                        height: TILE_SIZE,
+                        left: toX(colIndex),
+                        top: toY(rowIndex),
+                        opacity: isHidden ? 0 : anim.opacity,
+                        zIndex: isHidden ? -1 : 1,
+                        transform: [{ scale: anim.scale }],
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.tileText, { fontSize: value > 512 ? 24 : 32 }]}>
+                      {value}
+                    </Text>
+                  </Animated.View>
+                );
               })
             )}
+
+            {/* Ghost tiles overlay for sliding animation */}
+            <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, left: 0, top: 0, zIndex: 10 }}>
+              {isSliding && ghostTilesRef.current.map(g => (
+                <Animated.View
+                  key={`ghost-${g.key}`}
+                  style={[
+                    styles.tile,
+                    getTileStyle(g.value),
+                    {
+                      width: TILE_SIZE,
+                      height: TILE_SIZE,
+                      zIndex: 5,
+                      transform: [{ translateX: g.anim.x }, { translateY: g.anim.y }],
+                    },
+                  ]}
+                >
+                  <Text style={[styles.tileText, { fontSize: g.value > 512 ? 24 : 32 }]}>{g.value}</Text>
+                </Animated.View>
+              ))}
+            </View>
           </Animated.View>
         </View>
 
