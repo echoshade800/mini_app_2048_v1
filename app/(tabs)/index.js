@@ -757,8 +757,7 @@ export default function HomeScreen() {
                         height: TILE_SIZE,
                         left: toX(colIndex),
                         top: toY(rowIndex),
-                        opacity: isHidden ? 0 : anim.opacity,
-                        zIndex: isHidden ? -1 : 1,
+                        opacity: hideReal ? 0 : anim.opacity,
                         transform: [{ scale: anim.scale }],
                       },
                     ]}
