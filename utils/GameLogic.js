@@ -8,6 +8,22 @@ function nanoid() {
   return Math.random().toString(36).substr(2, 9);
 }
 
+// 把 row 里的数字统一包成对象（只在 move 的最开始调用一次）
+function normalizeRow(row, rowIndex) {
+  return row.map((cell, colIndex) => {
+    if (cell == null || cell === 0) return null;
+    if (typeof cell === 'number') {
+      return {
+        value: cell,
+        row: rowIndex,
+        col: colIndex,
+        tileId: 't_' + nanoid(), // 给"裸数字"补上稳定ID
+      };
+    }
+    return cell; // 已是对象
+  });
+}
+
 // 创建空的4x4棋盘
 export function createEmptyBoard() {
   return Array(4).fill(null).map(() => Array(4).fill(null));
@@ -125,7 +141,7 @@ function updateTilePositions(board) {
 
 // 主要的移动函数
 export function move(board, direction) {
-  let newBoard = board.map(row => [...row]);
+  let newBoard = board.map((row, r) => normalizeRow(row, r)); // 归一化防御
   let totalScore = 0;
   
   switch (direction) {
