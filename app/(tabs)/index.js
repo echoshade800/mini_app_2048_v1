@@ -368,39 +368,42 @@ export default function HomeScreen() {
     );
 
     Animated.parallel(slideAnims).start(async () => {
-      // 1) 计算本次"合并落点"——仅 UI 用
+      // 1) 计算本次"合并落点"
       const mergeTargets = computeMergeTargets(prev, direction);
 
-      // 2) 提交"合并后的棋盘"（尚未生成新砖）
-      dispatch({ type: 'SET_BOARD', payload: result.board });
-      
-      // 设置合并状态，隐藏合并位置的瓦片
+      // 2) 设置合并状态，隐藏即将被合并的瓦片
       if (mergeTargets.length > 0) {
         const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
         setMergingPositions(mergePositionKeys);
         setIsMerging(true);
       }
 
-      // 清除合并状态
+      // 3) 提交"合并后的棋盘"（尚未生成新砖）
+      dispatch({ type: 'SET_BOARD', payload: result.board });
+      
+      // 等待一帧，确保新的合并瓦片渲染
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
+      // 4) 清除合并状态，显示合并后的瓦片
       setIsMerging(false);
       setMergingPositions(new Set());
 
-      // 3) 只对"合并落点"弹跳（每段 0.1s）
+      // 5) 对合并落点做弹跳动画
       await animateMergeBounce(mergeTargets, 1.12, 100);
 
-      // 4) 生成新砖 & 只对"新增格子"弹入（沿用你已做好的 prev/next 对比）
+      // 6) 生成新砖并做弹入动画
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
 
-      // Clear ghost tiles
+      // 7) 清理状态
       ghostTilesRef.current = [];
       setIsSliding(false);
       dispatch({ type: 'SET_ANIMATING', payload: false });
 
       setMoveCount(prev => prev + 1);
 
-      // 5) 计分、胜负判定、haptics 等（保持你的原有顺序）
+      // 8) 胜负判定和反馈
       // Check win condition
       if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
         dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
