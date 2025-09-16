@@ -136,7 +136,8 @@ export default function HomeScreen() {
     }
     
     // Initialize board if empty
-    if (state.board.every(row => row.every(cell => cell === null))) {
+    const isEmpty = state.board.every(row => row.every(cell => cell === null));
+    if (isEmpty) {
       startNewGame();
     }
   }, [state.isLoading, state.showOnboarding]);
@@ -291,8 +292,12 @@ export default function HomeScreen() {
     setGameStartTime(Date.now());
     setMoveCount(0);
 
-    // Animate new tiles
-    animateNewTiles(createEmptyBoard(), newBoard);
+    // Animate initial tiles appearing
+    setTimeout(() => {
+      if (isMounted.current) {
+        animateNewTiles(createEmptyBoard(), newBoard);
+      }
+    }, 100);
   };
 
   const createEmptyBoard = () => {
