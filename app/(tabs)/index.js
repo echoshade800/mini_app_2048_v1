@@ -246,12 +246,8 @@ export default function HomeScreen() {
       for (let c = 0; c < N; c++) {
         const line = [];
         for (let r = 0; r < N; r++) {
-          const rr = r; // 保持原始行索引顺序
+          const rr = direction === 'up' ? r : (N - 1 - r);
           line.push({ v: prevBoard[rr][c], r: rr, c });
-        }
-        // 对于下移，需要反转处理顺序
-        if (direction === 'down') {
-          line.reverse();
         }
         processLine(line, false, c);
       }
