@@ -8,12 +8,12 @@ import {
   Alert,
   Platform,
   PanResponder,
-  Animated
+  Animated,
+  StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { useGame } from '../../contexts/GameContext';
 import {
   initializeBoard,
@@ -24,8 +24,21 @@ import {
   getHighestTile
 } from '../../utils/GameLogic';
 
+// 动态导入 Haptics，避免 H5 环境报错
+let Haptics = null;
+if (Platform.OS !== 'web') {
+  try {
+    Haptics = require('expo-haptics');
+  } catch (error) {
+    console.log('Haptics not available on this platform');
+  }
+}
+
 const { width: screenWidth } = Dimensions.get('window');
-const BOARD_SIZE = Math.min(screenWidth - 40, 320);
+// H5 适配：根据平台调整棋盘大小
+const BOARD_SIZE = Platform.OS === 'web' 
+  ? Math.min(screenWidth - 40, 400) // H5 上稍大一些
+  : Math.min(screenWidth - 40, 320);
 
 // Grid constants adapted from original 2048
 const GRID_SIZE = 4;
@@ -292,7 +305,9 @@ export default function HomeScreen() {
     if (!result.isValidMove) {
       // Invalid move - shake animation and haptic
       if (state.hapticsOn && Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        if (Haptics) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
       }
       
       // Shake animation
@@ -398,7 +413,9 @@ export default function HomeScreen() {
 
       // Haptic feedback for valid move
       if (state.hapticsOn && Platform.OS !== 'web') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (Haptics) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
       }
     });
   }, [state.gameState, state.isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
@@ -585,6 +602,9 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* H5 适配：添加状态栏 */}
+      {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
+      
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.scoreContainer}>
@@ -706,7 +726,9 @@ export default function HomeScreen() {
         {/* Game instructions for mobile */}
         <View style={styles.controls}>
           <Text style={styles.controlsText}>
-            {Platform.OS === 'web' ? 'Use arrow keys or swipe to move' : 'Swipe in any direction to move tiles'}
+            {Platform.OS === 'web' 
+              ? 'Use arrow keys or mouse swipe to move tiles' 
+              : 'Swipe in any direction to move tiles'}
           </Text>
         </View>
       </View>
@@ -718,7 +740,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#faf8ef',
-    paddingHorizontal: 20,
+    paddingHorizontal: Platform.OS === 'web' ? 16 : 20,
+    // H5 适配：添加最小高度
+    ...(Platform.OS === 'web' && {
+      minHeight: '100vh',
+      maxWidth: 600,
+      marginHorizontal: 'auto',
+    }),
   },
   loadingContainer: {
     flex: 1,
@@ -733,7 +761,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: Platform.OS === 'web' ? 16 : 20,
+    // H5 适配：添加顶部间距
+    ...(Platform.OS === 'web' && {
+      paddingTop: 20,
+    }),
   },
   scoreContainer: {
     flexDirection: 'row',
@@ -744,7 +776,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    minWidth: 70,
+    minWidth: Platform.OS === 'web' ? 80 : 70,
     alignItems: 'center',
   },
   scoreLabel: {
@@ -766,6 +798,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    // H5 适配：添加鼠标悬停效果
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
   },
   newGameText: {
     color: '#ffffff',
@@ -781,14 +817,19 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   instructionsText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'web' ? 18 : 16,
     color: '#776e65',
     marginBottom: 8,
+    textAlign: 'center',
   },
   historyLink: {
     fontSize: 14,
     color: '#667eea',
     textDecorationLine: 'underline',
+    // H5 适配：添加鼠标悬停效果
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
   },
   board: {
     backgroundColor: '#bbada0', // Original game board color
@@ -807,19 +848,35 @@ const styles = StyleSheet.create({
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
+    // H5 适配：添加用户选择禁用
+    ...(Platform.OS === 'web' && {
+      userSelect: 'none',
+      WebkitUserSelect: 'none',
+    }),
   },
   tileText: {
     fontWeight: '700', // Bold font weight like original
     textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
+    fontFamily: Platform.select({
+      ios: 'Helvetica Neue',
+      android: 'Roboto',
+      web: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    }),
+    // H5 适配：添加用户选择禁用
+    ...(Platform.OS === 'web' && {
+      userSelect: 'none',
+      WebkitUserSelect: 'none',
+    }),
   },
   controls: {
     alignItems: 'center',
-    paddingTop: 20,
+    paddingTop: Platform.OS === 'web' ? 16 : 20,
+    paddingBottom: Platform.OS === 'web' ? 20 : 0,
   },
   controlsText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'web' ? 16 : 14,
     color: '#8f7a66',
     textAlign: 'center',
+    lineHeight: 20,
   },
 });
