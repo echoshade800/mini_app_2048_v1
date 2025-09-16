@@ -498,7 +498,6 @@ export default function HomeScreen() {
           }
         }, newTileDelay);
       });
-    });
     }, animationDelay);
   }, [animationPhase, state.gameState, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
