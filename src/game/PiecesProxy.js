@@ -103,6 +103,8 @@ export default class PiecesProxy {
 
   // 设置棋盘状态
   setBoard(board) {
+    // 清理所有动画
+    this.animatingPieces = [];
     this.pieces = board.map(row => 
       row.map(cell => cell ? new Piece(cell) : null)
     );

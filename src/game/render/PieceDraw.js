@@ -33,7 +33,7 @@ export default class PieceDraw extends Piece {
 
     return (
       <Animated.View
-        key={`${row}-${col}-${value}`}
+        key={`${row}-${col}-${value}-${Date.now()}`}
         style={[
           layout.tileStyle,
           {
