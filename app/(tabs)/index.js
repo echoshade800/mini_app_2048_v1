@@ -65,11 +65,10 @@ export default function HomeScreen() {
   const { state, dispatch, saveGameData } = useGame();
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
-  const [isSliding, setIsSliding] = useState(false);
-  const [isMerging, setIsMerging] = useState(false);
-  const [mergingPositions, setMergingPositions] = useState(new Set());
+  const [animationPhase, setAnimationPhase] = useState('idle'); // 'idle', 'animating'
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
+  const masterTimeline = useRef(new Animated.Value(0));
 
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
   const isAnimatingRef = useRef(state.isAnimating);
@@ -250,57 +249,6 @@ export default function HomeScreen() {
     return mergeTargets;
   };
 
-  // 对合并落点做放大回弹；默认每段 100ms（0.1s）
-  const animateMergeBounce = (mergeTargets, up = 1.12, dur = 100) => {
-    return new Promise(resolve => {
-      if (!mergeTargets || mergeTargets.length === 0) return resolve();
-      
-      // 首先让合并后的瓦片从透明渐变到可见
-      const fadeInAnims = [];
-      const bounceAnims = [];
-
-      for (const { r, c } of mergeTargets) {
-        const key = `${r}-${c}`;
-        const av = animatedValues.current[key];
-        if (!av) continue;
-
-        // 重置动画值
-        av.scale.setValue(1);
-        av.opacity.setValue(0); // 从透明开始
-
-        // 先淡入
-        fadeInAnims.push(
-          Animated.timing(av.opacity, { 
-            toValue: 1, 
-            duration: 80, 
-            useNativeDriver: true 
-          })
-        );
-
-        // 然后放大回弹（放大到1.2倍，覆盖格子边缘）
-        bounceAnims.push(
-          Animated.sequence([
-            Animated.timing(av.scale, { 
-              toValue: 1.2, 
-              duration: 120, 
-              useNativeDriver: true 
-            }),
-            Animated.timing(av.scale, { 
-              toValue: 1, 
-              duration: 120, 
-              useNativeDriver: true 
-            }),
-          ])
-        );
-      }
-
-      // 先执行淡入动画
-      Animated.parallel(fadeInAnims).start(() => {
-        // 淡入完成后执行放大回弹动画
-        Animated.parallel(bounceAnims).start(() => resolve());
-      });
-    });
-  };
 
   const startNewGame = () => {
     const newBoard = initializeBoard();
@@ -323,7 +271,7 @@ export default function HomeScreen() {
   };
 
   const handleMove = useCallback(async (direction) => {
-    if (state.gameState !== 'playing' || state.isAnimating) return;
+    if (state.gameState !== 'playing' || animationPhase !== 'idle') return;
 
     const prev = state.board;
     const result = move(state.board, direction);
@@ -358,9 +306,24 @@ export default function HomeScreen() {
       return;
     }
 
-    // Generate ghost tiles for sliding animation
+    // 1. 准备幽灵瓦片和合并数据
     const transitions = computeTransitionsUIOnly(prev, result.board, direction)
       .filter(t => !(t.from.r === t.to.r && t.from.c === t.to.c));
+    
+    const mergeTargets = computeMergeTargets(prev, direction);
+    
+    // 2. 设置动画状态
+    setAnimationPhase('animating');
+    dispatch({ type: 'SET_ANIMATING', payload: true });
+    
+    // 3. 隐藏将要移动的真实瓦片（只用 opacity）
+    const movingPositions = new Set(transitions.map(t => `${t.from.r}-${t.from.c}`));
+    for (const posKey of movingPositions) {
+      const anim = animatedValues.current[posKey];
+      if (anim) {
+        anim.opacity.setValue(0);
+      }
+    }
     
     ghostTilesRef.current = transitions.map(t => ({
       key: `${t.from.r}-${t.from.c}`,
@@ -368,71 +331,76 @@ export default function HomeScreen() {
       from: t.from,
       to: t.to,
       anim: new Animated.ValueXY({ x: toX(t.from.c), y: toY(t.from.r) }),
+      scale: new Animated.Value(1),
     }));
 
-    // Set sliding state and animation lock AFTER ghost tiles are prepared
-    setIsSliding(true);
-    
-    // Force a render cycle to ensure ghost tiles are ready before starting animation
-    await new Promise(resolve => {
-      requestAnimationFrame(resolve);
-    });
-    
-    dispatch({ type: 'SET_ANIMATING', payload: true });
-
-    // Update score
+    // 4. 更新分数（但不提交棋盘）
     const newScore = state.score + result.score;
     dispatch({ type: 'UPDATE_SCORE', payload: newScore });
 
-    // Start sliding animation
-    const slideAnims = ghostTilesRef.current.map(g =>
+    // 5. 统一时间线动画
+    masterTimeline.current.setValue(0);
+    
+    const slideAnims = ghostTilesRef.current.map(g => 
       Animated.timing(g.anim, {
         toValue: { x: toX(g.to.c), y: toY(g.to.r) },
-        duration: 120,
+        duration: 200,
         useNativeDriver: true,
       })
     );
+    
+    // 合并位置的幽灵瓦片做放大回弹
+    const mergeAnims = ghostTilesRef.current
+      .filter(g => mergeTargets.some(mt => mt.r === g.to.r && mt.c === g.to.c))
+      .map(g => 
+        Animated.sequence([
+          Animated.delay(120), // 滑动完成后开始
+          Animated.timing(g.scale, {
+            toValue: 1.2,
+            duration: 60,
+            useNativeDriver: true,
+          }),
+          Animated.timing(g.scale, {
+            toValue: 1,
+            duration: 60,
+            useNativeDriver: true,
+          }),
+        ])
+      );
 
-    Animated.parallel(slideAnims).start(async () => {
-      // 清除幽灵瓦片和滑动状态
+    // 6. 执行所有动画
+    Animated.parallel([
+      ...slideAnims,
+      ...mergeAnims,
+    ]).start(async () => {
+      // 7. 动画完成后提交棋盘
       ghostTilesRef.current = [];
-      setIsSliding(false);
-      
-      // 计算合并落点
-      const mergeTargets = computeMergeTargets(prev, direction);
-
-      // 设置合并状态，隐藏即将被合并的位置
-      if (mergeTargets.length > 0) {
-        const mergePositionKeys = new Set(mergeTargets.map(pos => `${pos.r}-${pos.c}`));
-        setMergingPositions(mergePositionKeys);
-        setIsMerging(true);
-      }
-
-      // 提交合并后的棋盘（此时合并位置的瓦片是隐藏的）
       dispatch({ type: 'SET_BOARD', payload: result.board });
       
-      // 短暂延迟，确保DOM更新完成
-      await new Promise(resolve => setTimeout(resolve, 50));
-      
-      // 执行合并动画（淡入 + 放大回弹）
-      if (mergeTargets.length > 0) {
-        await animateMergeBounce(mergeTargets, 1.2, 120);
+      // 8. 恢复所有瓦片的透明度（不做缩放）
+      for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 4; col++) {
+          const key = `${row}-${col}`;
+          const anim = animatedValues.current[key];
+          if (anim) {
+            anim.opacity.setValue(1);
+            anim.scale.setValue(1);
+          }
+        }
       }
 
-      // 清除合并状态
-      setIsMerging(false);
-      setMergingPositions(new Set());
-
-      // 生成新砖并执行出生动画
+      // 9. 生成新瓦片并执行出生动画
       const boardWithNewTile = addRandomTile(result.board);
       dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
       animateNewTiles(result.board, boardWithNewTile);
 
+      // 10. 重置动画状态
+      setAnimationPhase('idle');
       dispatch({ type: 'SET_ANIMATING', payload: false });
 
       setMoveCount(prev => prev + 1);
 
-      // 5) 计分、胜负判定、haptics 等（保持你的原有顺序）
+      // 11. 胜负判定和触觉反馈
       // Check win condition
       if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
         dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
@@ -450,28 +418,31 @@ export default function HomeScreen() {
         }
       }
     });
-  }, [state.gameState, state.isAnimating, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
+  }, [animationPhase, state.gameState, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
   // 用 useMemo 重建 PanResponder，避免旧值问题
-  const panResponder = useMemo(() => PanResponder.create({
+  const panResponder = useMemo(() => {
+    const isAnimating = () => animationPhase !== 'idle';
+    
+    return PanResponder.create({
     // 尝试尽早接管（动画时不接管）
-    onStartShouldSetPanResponder: () => !isAnimatingRef.current,
+    onStartShouldSetPanResponder: () => !isAnimating(),
     onMoveShouldSetPanResponder: (_evt, g) => {
-      if (isAnimatingRef.current) return false;
+      if (isAnimating()) return false;
       const { dx, dy } = g;
       const THRESHOLD = 20; // 统一阈值
       return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
     },
     // 有子元素（按钮/文字）时，capture 有助于父级接管
-    onStartShouldSetPanResponderCapture: () => !isAnimatingRef.current,
+    onStartShouldSetPanResponderCapture: () => !isAnimating(),
     onMoveShouldSetPanResponderCapture: (_evt, g) => {
-      if (isAnimatingRef.current) return false;
+      if (isAnimating()) return false;
       const { dx, dy } = g;
       const THRESHOLD = 20;
       return Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD;
     },
     onPanResponderRelease: (_evt, g) => {
-      if (isAnimatingRef.current) return;
+      if (isAnimating()) return;
       const { dx, dy } = g;
       const THRESHOLD = 20;
 
@@ -484,7 +455,8 @@ export default function HomeScreen() {
       handleMove(dir);
     },
     onShouldBlockNativeResponder: () => true,
-  }), [handleMove]); // 只依赖稳定的 handleMove
+  });
+  }, [handleMove, animationPhase]);
 
   const animateNewTiles = (prevBoard, nextBoard) => {
     // Find new tiles and animate them
@@ -704,12 +676,6 @@ export default function HomeScreen() {
                 const key = `${rowIndex}-${colIndex}`;
                 const anim = animatedValues.current[key] || { scale: new Animated.Value(1), opacity: new Animated.Value(1) };
                 
-                // 判断是否需要隐藏瓦片
-                const positionKey = `${rowIndex}-${colIndex}`;
-                const isInGhost = isSliding && ghostTilesRef.current.some(g => g.key === positionKey);
-                const isMergeHiding = isMerging && mergingPositions.has(positionKey);
-                const isHidden = isInGhost || isMergeHiding;
-
                 return (
                   <Animated.View
                     key={key}
@@ -721,8 +687,7 @@ export default function HomeScreen() {
                         height: TILE_SIZE,
                         left: toX(colIndex),
                         top: toY(rowIndex),
-                        opacity: isHidden ? 0 : anim.opacity,
-                        zIndex: isHidden ? -1 : 1,
+                        opacity: anim.opacity,
                         transform: [{ scale: anim.scale }],
                       },
                     ]}
@@ -736,8 +701,8 @@ export default function HomeScreen() {
             )}
 
             {/* Ghost tiles overlay for sliding animation */}
-            <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, left: 0, top: 0, zIndex: 10 }}>
-              {isSliding && ghostTilesRef.current.map(g => (
+            <View style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, left: 0, top: 0, zIndex: 15 }}>
+              {animationPhase === 'animating' && ghostTilesRef.current.map(g => (
                 <Animated.View
                   key={`ghost-${g.key}`}
                   style={[
@@ -746,8 +711,11 @@ export default function HomeScreen() {
                     {
                       width: TILE_SIZE,
                       height: TILE_SIZE,
-                      zIndex: 5,
-                      transform: [{ translateX: g.anim.x }, { translateY: g.anim.y }],
+                      transform: [
+                        { translateX: g.anim.x }, 
+                        { translateY: g.anim.y },
+                        { scale: g.scale }
+                      ],
                     },
                   ]}
                 >
