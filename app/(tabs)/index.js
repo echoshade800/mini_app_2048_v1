@@ -405,7 +405,7 @@ export default function HomeScreen() {
       
       // 10. 等待恢复动画完成后再生成新瓦片
       const waitTime = Platform.OS !== 'web' ? 60 : 0;
-      setTimeout(() => {
+      setTimeout(async () => {
         // 11. 生成新瓦片并执行出生动画
         const boardWithNewTile = addRandomTile(result.board);
         dispatch({ type: 'SET_BOARD', payload: boardWithNewTile });
