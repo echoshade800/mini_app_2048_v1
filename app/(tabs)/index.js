@@ -80,11 +80,16 @@ export default function HomeScreen() {
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [hideRealTiles, setHideRealTiles] = useState(false);
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
   const animationInProgress = useRef(false);
   const isMounted = useRef(true);
+  const boardStateRef = useRef(state.board);
+
+  // 同步 board state 到 ref
+  useEffect(() => {
+    boardStateRef.current = state.board;
+  }, [state.board]);
 
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
   const isAnimatingRef = useRef(isAnimating);
@@ -334,7 +339,6 @@ export default function HomeScreen() {
     // 标记动画开始
     animationInProgress.current = true;
     setIsAnimating(true);
-    setHideRealTiles(true);
 
     // 1. 准备幽灵瓦片和合并数据
     const transitions = computeTransitionsUIOnly(prev, result.board, direction)
@@ -381,53 +385,48 @@ export default function HomeScreen() {
       ...slideAnims,
       ...mergeAnims,
     ]).start(() => {
-      // 6. 动画完成后的批量状态更新
+      // 6. 动画完成后立即清理并更新状态
       if (!isMounted.current) return;
-      
-      ghostTilesRef.current = [];
       
       // 计算最终棋盘状态
       const finalBoard = addRandomTile(result.board);
       const newScore = state.score + result.score;
       
-      // 批量提交所有状态更新
-      requestAnimationFrame(() => {
-        if (!isMounted.current) return;
-        
-        // 批量更新状态
-        dispatch({ type: 'SET_BOARD', payload: finalBoard });
-        dispatch({ type: 'UPDATE_SCORE', payload: newScore });
-        
-        // 显示真实瓦片
-        setHideRealTiles(false);
-        setIsAnimating(false);
-        animationInProgress.current = false;
-        
-        // 为新瓦片添加弹入动画
-        animateNewTiles(result.board, finalBoard);
-        
-        // 更新游戏统计
-        setMoveCount(prev => prev + 1);
-        
-        // 胜负判定
-        if (checkWin(finalBoard) && state.gameState === 'playing') {
-          dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
-          showWinModal();
-        } else if (checkGameOver(finalBoard)) {
-          dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-          endGame(finalBoard, newScore, false).then(() => {
-            if (!isMounted.current) return;
-            showLoseModal();
-          });
+      // 立即清理幽灵瓦片
+      ghostTilesRef.current = [];
+      
+      // 批量更新状态
+      dispatch({ type: 'SET_BOARD', payload: finalBoard });
+      dispatch({ type: 'UPDATE_SCORE', payload: newScore });
+      
+      // 重置动画状态
+      setIsAnimating(false);
+      animationInProgress.current = false;
+      
+      // 为新瓦片添加弹入动画
+      animateNewTiles(result.board, finalBoard);
+      
+      // 更新游戏统计
+      setMoveCount(prev => prev + 1);
+      
+      // 胜负判定
+      if (checkWin(finalBoard) && state.gameState === 'playing') {
+        dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
+        showWinModal();
+      } else if (checkGameOver(finalBoard)) {
+        dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
+        endGame(finalBoard, newScore, false).then(() => {
+          if (!isMounted.current) return;
+          showLoseModal();
+        });
+      }
+      
+      // 触觉反馈
+      if (state.hapticsOn && Platform.OS !== 'web') {
+        if (Haptics) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
-        
-        // 触觉反馈
-        if (state.hapticsOn && Platform.OS !== 'web') {
-          if (Haptics) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
-        }
-      });
+      }
     });
   }, [isAnimating, state.gameState, state.board, state.score, dispatch, saveGameData, state.hapticsOn, state.currentGame, state.maxLevel, state.maxScore, state.maxTime, state.gameHistory, moveCount, gameStartTime]);
 
@@ -674,7 +673,7 @@ export default function HomeScreen() {
             })}
 
             {/* Game tiles */}
-            {state.board.map((row, rowIndex) =>
+            {boardStateRef.current.map((row, rowIndex) =>
               row.map((value, colIndex) => {
                 if (!value) return null;
 
@@ -692,7 +691,7 @@ export default function HomeScreen() {
                         height: TILE_SIZE,
                         left: pixelAlign(toX(colIndex)),
                         top: pixelAlign(toY(rowIndex)),
-                        opacity: hideRealTiles ? 0 : anim.opacity,
+                        opacity: isAnimating ? 0 : anim.opacity,
                         transform: [{ scale: anim.scale }],
                         // 移动端性能优化
                         renderToHardwareTextureAndroid: true,
@@ -709,38 +708,41 @@ export default function HomeScreen() {
             )}
 
             {/* Ghost tiles overlay for sliding animation */}
-            <View style={{ 
-              position: 'absolute', 
-              width: BOARD_SIZE, 
-              height: BOARD_SIZE, 
-              left: 0, 
-              top: 0, 
-              zIndex: 15 
-            }}>
-              {isAnimating && ghostTilesRef.current.map(g => (
-                <Animated.View
-                  key={`ghost-${g.key}`}
-                  style={[
-                    styles.tile,
-                    getTileStyle(g.value),
-                    {
-                      width: TILE_SIZE,
-                      height: TILE_SIZE,
-                      transform: [
-                        { translateX: g.anim.x }, 
-                        { translateY: g.anim.y },
-                        { scale: g.scale }
-                      ],
-                      // 移动端性能优化
-                      renderToHardwareTextureAndroid: true,
-                      shouldRasterizeIOS: true,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.tileText, { fontSize: g.value > 512 ? 24 : 32 }]}>{g.value}</Text>
-                </Animated.View>
-              ))}
-            </View>
+            {isAnimating && (
+              <View style={{ 
+                position: 'absolute', 
+                width: BOARD_SIZE, 
+                height: BOARD_SIZE, 
+                left: 0, 
+                top: 0, 
+                zIndex: 15,
+                backgroundColor: 'transparent'
+              }}>
+                {ghostTilesRef.current.map(g => (
+                  <Animated.View
+                    key={`ghost-${g.key}`}
+                    style={[
+                      styles.tile,
+                      getTileStyle(g.value),
+                      {
+                        width: TILE_SIZE,
+                        height: TILE_SIZE,
+                        transform: [
+                          { translateX: g.anim.x }, 
+                          { translateY: g.anim.y },
+                          { scale: g.scale }
+                        ],
+                        // 移动端性能优化
+                        renderToHardwareTextureAndroid: true,
+                        shouldRasterizeIOS: true,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.tileText, { fontSize: g.value > 512 ? 24 : 32 }]}>{g.value}</Text>
+                  </Animated.View>
+                ))}
+              </View>
+            )}
           </Animated.View>
         </View>
 
