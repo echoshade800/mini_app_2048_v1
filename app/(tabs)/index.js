@@ -595,21 +595,24 @@ export default function HomeScreen() {
 
   if (state.isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
+      <SafeAreaView style={styles.safeContainer}>
+        <View style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* H5 适配：添加状态栏 */}
-      {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
-      
-      {/* Header */}
-      <View style={styles.header}>
+    <SafeAreaView style={styles.safeContainer}>
+      <View style={styles.container}>
+        {/* H5 适配：添加状态栏 */}
+        {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
+        
+        {/* Header */}
+        <View style={styles.header}>
         <View style={styles.scoreContainer}>
           <View style={styles.scoreBox}>
             <Text style={styles.scoreLabel}>SCORE</Text>
@@ -637,7 +640,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={{ position: 'relative' }}>
+        <View style={{ position: 'relative', alignSelf: 'center' }}>
           {/* 手势层：只覆盖棋盘区域 */}
           <View
             style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, zIndex: 10 }}
@@ -734,14 +737,18 @@ export default function HomeScreen() {
           </Text>
         </View>
       </View>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeContainer: {
     flex: 1,
     backgroundColor: '#faf8ef',
+  },
+  container: {
+    flex: 1,
     paddingHorizontal: Platform.OS === 'web' ? 16 : 20,
     // H5 适配：添加最小高度
     ...(Platform.OS === 'web' && {
