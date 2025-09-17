@@ -186,68 +186,6 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>Preferences</Text>
           </View>
 
-          {/* Sound Settings */}
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Sound Effects</Text>
-              <Text style={styles.settingDescription}>Play sounds for moves and merges</Text>
-            </View>
-            <Switch
-              value={state.soundOn}
-              onValueChange={(value) => updateSetting('soundOn', value)}
-              trackColor={{ false: '#e2e8f0', true: '#667eea' }}
-              thumbColor={state.soundOn ? '#ffffff' : '#cbd5e0'}
-            />
-          </View>
-
-          {/* Volume Slider */}
-          {state.soundOn && Slider && Platform.OS !== 'web' && (
-            <View style={styles.settingItem}>
-              <Text style={styles.settingLabel}>Volume</Text>
-              <View style={styles.sliderContainer}>
-                <Ionicons name="volume-low" size={20} color="#94a3b8" />
-                <Slider
-                  style={styles.slider}
-                  minimumValue={0}
-                  maximumValue={100}
-                  value={state.volume}
-                  onValueChange={(value) => updateSetting('volume', Math.round(value))}
-                  minimumTrackTintColor="#667eea"
-                  maximumTrackTintColor="#e2e8f0"
-                  thumbStyle={{ backgroundColor: '#667eea' }}
-                />
-                <Ionicons name="volume-high" size={20} color="#94a3b8" />
-                <Text style={styles.volumeValue}>{state.volume}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* H5 环境的音量控制替代方案 */}
-          {state.soundOn && Platform.OS === 'web' && (
-            <View style={styles.settingItem}>
-              <Text style={styles.settingLabel}>Volume: {state.volume}%</Text>
-              <View style={styles.webVolumeControls}>
-                <TouchableOpacity 
-                  style={styles.volumeButton}
-                  onPress={() => updateSetting('volume', Math.max(0, state.volume - 10))}
-                >
-                  <Ionicons name="remove" size={16} color="#667eea" />
-                </TouchableOpacity>
-                <View style={styles.volumeBar}>
-                  <View 
-                    style={[styles.volumeFill, { width: `${state.volume}%` }]} 
-                  />
-                </View>
-                <TouchableOpacity 
-                  style={styles.volumeButton}
-                  onPress={() => updateSetting('volume', Math.min(100, state.volume + 10))}
-                >
-                  <Ionicons name="add" size={16} color="#667eea" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
           {/* Haptics (Mobile only) */}
           {Platform.OS !== 'web' && (
             <View style={styles.settingItem}>
