@@ -43,6 +43,7 @@ class StorageUtils {
    */
   static async getData() {
     try {
+      console.log('get data from storage', `${this.miniAppName}info`)
       const infoData = await AsyncStorage.getItem(`${this.miniAppName}info`);
       return infoData ? JSON.parse(infoData) : null;
     } catch (error) {
@@ -58,6 +59,7 @@ class StorageUtils {
    */
   static async setData(newData) {
     try {
+      console.log('set data to storage', `${this.miniAppName}info`)
       // 先读取老数据
       const oldData = await this.getData();
       

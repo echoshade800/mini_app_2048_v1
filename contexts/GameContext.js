@@ -49,10 +49,11 @@ function gameReducer(state, action) {
       };
       
     case 'UPDATE_SCORE':
+      const newBestScore = Math.max(state.bestScore, action.payload);
       return {
         ...state,
         score: action.payload,
-        bestScore: Math.max(state.bestScore, action.payload),
+        bestScore: newBestScore,
       };
       
     case 'SET_GAME_STATE':
@@ -128,6 +129,13 @@ export function GameProvider({ children }) {
   useEffect(() => {
     initializeApp();
   }, []);
+
+  // 监听 bestScore 变化并自动保存
+  useEffect(() => {
+    if (!state.isLoading && state.bestScore > 0) {
+      saveGameData({ maxScore: state.bestScore });
+    }
+  }, [state.bestScore, state.isLoading]);
   
   const initializeApp = async () => {
     try {

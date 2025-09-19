@@ -337,6 +337,11 @@ export default function HomeScreen() {
     // 4. 更新分数（但不提交棋盘）
     const newScore = state.score + result.score;
     dispatch({ type: 'UPDATE_SCORE', payload: newScore });
+    
+    // 如果新分数超过最佳分数，立即保存
+    if (newScore > state.bestScore) {
+      saveGameData({ maxScore: newScore });
+    }
 
     // 5. 统一时间线动画
     masterTimeline.current.setValue(0);
