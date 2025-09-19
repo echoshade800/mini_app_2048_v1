@@ -58,36 +58,8 @@ export default function ProfileScreen() {
     );
   };
 
-  const exportData = () => {
-    const exportableData = {
-      stats: {
-        maxLevel: state.maxLevel,
-        maxScore: state.maxScore,
-        maxTime: state.maxTime,
-      },
-      settings: {
-        soundOn: state.soundOn,
-        volume: state.volume,
-        hapticsOn: state.hapticsOn,
-        theme: state.theme,
-        nickname: state.nickname,
-      },
-      gameHistory: state.gameHistory.slice(0, 10), // Last 10 games
-    };
 
-    Alert.alert(
-      'Export Data',
-      `Data exported successfully!\n\n${JSON.stringify(exportableData, null, 2)}`,
-      [{ text: 'OK' }],
-      { cancelable: true }
-    );
-  };
 
-  const forceResync = () => {
-    Alert.alert('Force Resync', 'Resync functionality would connect to cloud storage.', [
-      { text: 'OK' }
-    ]);
-  };
 
 
   const recentGames = state.gameHistory.slice(0, 5);
@@ -204,28 +176,6 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Developer Tools */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="code" size={24} color="#06b6d4" />
-            <Text style={styles.sectionTitle}>Developer Tools</Text>
-          </View>
-
-          <TouchableOpacity style={styles.actionButton} onPress={exportData}>
-            <Ionicons name="download" size={20} color="#667eea" />
-            <Text style={styles.actionButtonText}>Export Data (JSON)</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton} onPress={resetLocalBest}>
-            <Ionicons name="refresh" size={20} color="#ef4444" />
-            <Text style={[styles.actionButtonText, { color: '#ef4444' }]}>Reset Local Best</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton} onPress={forceResync}>
-            <Ionicons name="cloud-upload" size={20} color="#10b981" />
-            <Text style={[styles.actionButtonText, { color: '#10b981' }]}>Force Resync</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* Navigation Links */}
         <View style={styles.section}>
