@@ -344,10 +344,10 @@ export default function HomeScreen() {
     }
 
     // 检查并更新最高瓦片值
-    const currentHighestTile = getHighestTile(boardWithNewTile);
-    if (currentHighestTile > state.maxLevel) {
-      dispatch({ type: 'UPDATE_STATS', payload: { maxLevel: currentHighestTile } });
-    }
+    // const currentHighestTile = getHighestTile(boardWithNewTile);
+    // if (currentHighestTile > state.maxLevel) {
+    //   dispatch({ type: 'UPDATE_STATS', payload: { maxLevel: currentHighestTile } });
+    // }
 
     // 5. 统一时间线动画
     masterTimeline.current.setValue(0);
