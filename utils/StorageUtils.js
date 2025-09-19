@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 class StorageUtils {
   // miniApp名称变量
-  static miniAppName = '2048_';
+  static miniAppName = '2048MiniApp';
 
   /**
    * 获取用户数据
