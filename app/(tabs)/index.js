@@ -414,6 +414,13 @@ export default function HomeScreen() {
         if (checkWin(boardWithNewTile) && state.gameState === 'playing' && !state.hasWon) {
           dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
           dispatch({ type: 'SET_HAS_WON', payload: true });
+          
+          // 记录达到2048的时间（Fastest Win）
+          const winTime = gameStartTime ? Math.floor((Date.now() - gameStartTime) / 1000) : 0;
+          if (winTime > 0 && (state.maxTime === 0 || winTime < state.maxTime)) {
+            dispatch({ type: 'UPDATE_STATS', payload: { maxTime: winTime } });
+          }
+          
           showWinModal();
         } else if (checkGameOver(boardWithNewTile)) {
           dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
@@ -526,7 +533,8 @@ export default function HomeScreen() {
     const stats = {
       maxLevel: Math.max(state.maxLevel, highestTile),
       maxScore: Math.max(state.maxScore, finalScore),
-      maxTime: won && (state.maxTime === 0 || duration < state.maxTime) ? duration : state.maxTime,
+      // maxTime 已经在达到2048时记录，这里不需要再次计算
+      maxTime: state.maxTime,
     };
 
     dispatch({ type: 'UPDATE_STATS', payload: stats });
