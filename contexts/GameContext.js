@@ -136,6 +136,20 @@ export function GameProvider({ children }) {
       saveGameData({ maxScore: state.bestScore });
     }
   }, [state.bestScore, state.isLoading]);
+
+  // 监听 maxLevel 变化并自动保存
+  useEffect(() => {
+    if (!state.isLoading && state.maxLevel > 0) {
+      saveGameData({ maxLevel: state.maxLevel });
+    }
+  }, [state.maxLevel, state.isLoading]);
+
+  // 监听 maxTime 变化并自动保存
+  useEffect(() => {
+    if (!state.isLoading && state.maxTime > 0) {
+      saveGameData({ maxTime: state.maxTime });
+    }
+  }, [state.maxTime, state.isLoading]);
   
   const initializeApp = async () => {
     try {
