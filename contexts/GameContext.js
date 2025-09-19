@@ -10,6 +10,7 @@ const initialState = {
   bestScore: 0,
   gameState: 'playing', // 'playing', 'won', 'lost'
   isAnimating: false,
+  hasWon: false, // Track if victory dialog has been shown
   
   // Settings
   soundOn: true,
@@ -95,12 +96,25 @@ function gameReducer(state, action) {
         score: 0,
         gameState: 'playing',
         currentGame: action.payload.gameData,
+        hasWon: false,
       };
       
     case 'HIDE_ONBOARDING':
       return {
         ...state,
         showOnboarding: false,
+      };
+      
+    case 'ADD_SPECIFIC_TILE':
+      return {
+        ...state,
+        board: action.payload,
+      };
+      
+    case 'SET_HAS_WON':
+      return {
+        ...state,
+        hasWon: action.payload,
       };
       
     default:

@@ -89,6 +89,7 @@ export default function ProfileScreen() {
     ]);
   };
 
+
   const recentGames = state.gameHistory.slice(0, 5);
 
   return (

@@ -400,13 +400,20 @@ export default function HomeScreen() {
         setMoveCount(prev => prev + 1);
 
         // 11. 胜负判定和触觉反馈
-        if (checkWin(boardWithNewTile) && state.gameState === 'playing') {
+        if (checkWin(boardWithNewTile) && state.gameState === 'playing' && !state.hasWon) {
           dispatch({ type: 'SET_GAME_STATE', payload: 'won' });
+          dispatch({ type: 'SET_HAS_WON', payload: true });
           showWinModal();
         } else if (checkGameOver(boardWithNewTile)) {
           dispatch({ type: 'SET_GAME_STATE', payload: 'lost' });
-          endGame(boardWithNewTile, newScore, false).then(() => {
-            showLoseModal();
+          // 如果玩家已经达到过2048，即使游戏结束也记录为成功
+          const gameWon = state.hasWon;
+          endGame(boardWithNewTile, newScore, gameWon).then(() => {
+            if (gameWon) {
+              showVictoryEndModal();
+            } else {
+              showLoseModal();
+            }
           });
         }
 
@@ -537,6 +544,23 @@ export default function HomeScreen() {
               startNewGame();
             });
           },
+        },
+      ]
+    );
+  };
+
+  const showVictoryEndModal = () => {
+    Alert.alert(
+      '🏆 Victory Complete!',
+      `Congratulations! You achieved 2048 and played until the end!\n\nFinal Score: ${state.score}\nHighest Tile: ${getHighestTile(state.board)}\n\nThis game is recorded as a victory!`,
+      [
+        {
+          text: 'New Game',
+          onPress: startNewGame,
+        },
+        {
+          text: 'View History',
+          onPress: () => router.push('/history'),
         },
       ]
     );
