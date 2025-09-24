@@ -7,7 +7,7 @@ import {
   ScrollView,
   Dimensions
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -306,7 +306,7 @@ export default function TutorialScreen() {
   const currentTutorial = tutorialSteps[currentStep];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
@@ -371,7 +371,7 @@ export default function TutorialScreen() {
           </TouchableOpacity>
         )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

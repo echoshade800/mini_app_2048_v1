@@ -11,7 +11,7 @@ import {
   Animated,
   StatusBar
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../../contexts/GameContext';
@@ -638,19 +638,16 @@ export default function HomeScreen() {
 
   if (state.isLoading) {
     return (
-      <SafeAreaView style={styles.safeContainer}>
-        <View style={styles.container}>
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading...</Text>
-          </View>
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
-      <View style={styles.container}>
+    <View style={styles.container}>
         {/* H5 适配：添加状态栏 */}
         {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
         
@@ -780,16 +777,11 @@ export default function HomeScreen() {
           </Text>
         </View>
       </View>
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeContainer: {
-    flex: 1,
-    backgroundColor: '#faf8ef',
-  },
   container: {
     flex: 1,
     paddingHorizontal: Platform.OS === 'web' ? 16 : 20,

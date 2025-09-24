@@ -9,7 +9,7 @@ import {
   Share,
   Platform
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../../contexts/GameContext';
@@ -27,7 +27,7 @@ export default function DetailsScreen() {
 
   if (!game) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color="#ef4444" />
           <Text style={styles.errorTitle}>Game Not Found</Text>
@@ -41,7 +41,7 @@ export default function DetailsScreen() {
             <Text style={styles.backButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -155,7 +155,7 @@ export default function DetailsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
@@ -318,7 +318,7 @@ export default function DetailsScreen() {
           <Text style={styles.playAgainText}>Play Again</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

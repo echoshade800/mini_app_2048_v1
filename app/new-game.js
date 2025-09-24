@@ -8,7 +8,7 @@ import {
   Modal,
   Alert
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../contexts/GameContext';
@@ -92,7 +92,7 @@ export default function NewGameScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
@@ -236,7 +236,7 @@ export default function NewGameScreen() {
       </View>
 
       <ConfirmationModal />
-    </SafeAreaView>
+    </View>
   );
 }
 

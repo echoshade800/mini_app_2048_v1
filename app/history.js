@@ -8,7 +8,7 @@ import {
   TextInput,
   FlatList
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../contexts/GameContext';
@@ -195,7 +195,7 @@ export default function HistoryScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <FlatList
         data={filteredGames}
         keyExtractor={(item) => item.id}
@@ -205,7 +205,7 @@ export default function HistoryScreen() {
         contentContainerStyle={filteredGames.length === 0 ? styles.emptyList : styles.list}
         showsVerticalScrollIndicator={false}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
