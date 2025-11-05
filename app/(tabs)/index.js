@@ -36,10 +36,11 @@ if (Platform.OS !== 'web') {
 }
 
 const { width: screenWidth } = Dimensions.get('window');
-// H5 适配：根据平台调整棋盘大小
-const BOARD_SIZE = Platform.OS === 'web' 
-  ? Math.min(screenWidth - 40, 400) // H5 上稍大一些
-  : Math.min(screenWidth - 40, 320);
+// 动态计算内容宽度：屏幕宽度减去左右各14px的边距
+const CONTENT_MARGIN = 14; // 左右各14px
+const CONTENT_WIDTH = screenWidth - (CONTENT_MARGIN * 2);
+// 棋盘大小：与header内容宽度一致
+const BOARD_SIZE = CONTENT_WIDTH;
 
 // Grid constants adapted from original 2048
 const GRID_SIZE = 4;
@@ -724,25 +725,29 @@ export default function HomeScreen() {
   };
 
   const getTileStyle = (value) => {
-    // Original 2048 color scheme
+    // 2048 color scheme
     const tileColors = {
-      2: { backgroundColor: '#eee4da', color: '#776e65' },
-      4: { backgroundColor: '#ede0c8', color: '#776e65' },
-      8: { backgroundColor: '#f2b179', color: '#f9f6f2' },
-      16: { backgroundColor: '#f59563', color: '#f9f6f2' },
-      32: { backgroundColor: '#f67c5f', color: '#f9f6f2' },
-      64: { backgroundColor: '#f65e3b', color: '#f9f6f2' },
-      128: { backgroundColor: '#edcf72', color: '#f9f6f2', fontSize: 45 },
-      256: { backgroundColor: '#edcc61', color: '#f9f6f2', fontSize: 45 },
-      512: { backgroundColor: '#edc850', color: '#f9f6f2', fontSize: 45 },
-      1024: { backgroundColor: '#edc53f', color: '#f9f6f2', fontSize: 35 },
-      2048: { backgroundColor: '#edc22e', color: '#f9f6f2', fontSize: 35 },
-      4096: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
-      8192: { backgroundColor: '#3c3a32', color: '#f9f6f2', fontSize: 30 },
+      2: { backgroundColor: '#EEE4DA', color: '#776e65' },
+      4: { backgroundColor: '#EDE0C8', color: '#776e65' },
+      8: { backgroundColor: '#F2B179', color: '#f9f6f2' },
+      16: { backgroundColor: '#F59563', color: '#f9f6f2' },
+      32: { backgroundColor: '#F67C5F', color: '#f9f6f2' },
+      64: { backgroundColor: '#F65E3B', color: '#f9f6f2' },
+      128: { backgroundColor: '#EDCF72', color: '#f9f6f2', fontSize: 45 },
+      256: { backgroundColor: '#EDCC61', color: '#f9f6f2', fontSize: 45 },
+      512: { backgroundColor: '#EDC850', color: '#f9f6f2', fontSize: 45 },
+      1024: { backgroundColor: '#EDC53F', color: '#f9f6f2', fontSize: 35 },
+      2048: { backgroundColor: '#EDC22E', color: '#f9f6f2', fontSize: 35 },
+      4096: { backgroundColor: '#E6B91B', color: '#f9f6f2', fontSize: 30 },
+      8192: { backgroundColor: '#DFA100', color: '#f9f6f2', fontSize: 30 },
+      16384: { backgroundColor: '#D08300', color: '#f9f6f2', fontSize: 30 },
+      32768: { backgroundColor: '#B56400', color: '#f9f6f2', fontSize: 30 },
+      65536: { backgroundColor: '#984B00', color: '#f9f6f2', fontSize: 30 },
+      131072: { backgroundColor: '#7B3A00', color: '#f9f6f2', fontSize: 30 },
     };
 
     const tileClass = tileColors[value] || { 
-      backgroundColor: '#3c3a32', 
+      backgroundColor: '#7B3A00', 
       color: '#f9f6f2', 
       fontSize: 30 
     };
@@ -755,6 +760,15 @@ export default function HomeScreen() {
     if (value < 1000) return 45;
     if (value < 10000) return 35;
     return 30;
+  };
+
+  // 根据数字位数动态计算score和best的字号
+  const getScoreFontSize = (score) => {
+    const digitCount = score.toString().length;
+    if (digitCount <= 3) return 20; // 3位数及以下：20px
+    if (digitCount === 4) return 18; // 4位数：18px
+    if (digitCount === 5) return 16; // 5位数：16px
+    return 14; // 6位数及以上：14px
   };
 
   if (state.isLoading) {
@@ -773,35 +787,69 @@ export default function HomeScreen() {
         {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
         
         {/* Header */}
-        <View style={styles.header}>
-        <View style={styles.scoreContainer}>
-          <View style={styles.scoreBox}>
-            <Text style={styles.scoreLabel}>SCORE</Text>
-            <Text style={styles.scoreValue}>{state.score}</Text>
-          </View>
-          <View style={styles.scoreBox}>
-            <Text style={styles.scoreLabel}>BEST</Text>
-            <Text style={styles.scoreValue}>{state.bestScore}</Text>
+        <View style={styles.headerWrapper}>
+          <View style={[styles.headerContent, { width: CONTENT_WIDTH }]}>
+            {/* 2048瓦片 */}
+            <View style={styles.titleTile}>
+              <Text style={styles.titleTileText}>2048</Text>
+            </View>
+            
+            {/* Score、Best和按钮容器 */}
+            <View style={styles.headerRightContainer}>
+              {/* Score和Best容器 */}
+              <View style={styles.scoreContainer}>
+                <View style={styles.scoreBox}>
+                  <Text style={styles.scoreLabel}>SCORE</Text>
+                  <Text 
+                    style={[styles.scoreValue, { fontSize: getScoreFontSize(state.score) }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit={true}
+                    minimumFontScale={0.7}
+                  >
+                    {state.score}
+                  </Text>
+                </View>
+                <View style={styles.scoreBox}>
+                  <Text style={styles.scoreLabel}>BEST</Text>
+                  <Text 
+                    style={[styles.scoreValue, { fontSize: getScoreFontSize(state.bestScore) }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit={true}
+                    minimumFontScale={0.7}
+                  >
+                    {state.bestScore}
+                  </Text>
+                </View>
+              </View>
+              
+              {/* 按钮栏 */}
+              <View style={styles.headerButtonsContainer}>
+                <View style={styles.buttonColumn}>
+                  <TouchableOpacity style={styles.historyButton} onPress={() => router.push('/history')}>
+                    <Text style={styles.buttonText} numberOfLines={1} ellipsizeMode="tail">History</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.buttonColumn}>
+                  <TouchableOpacity style={styles.newGameButton} onPress={startNewGame}>
+                    <Text style={styles.buttonText} numberOfLines={1} ellipsizeMode="tail">New Game</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
           </View>
         </View>
-        <TouchableOpacity style={styles.newGameButton} onPress={startNewGame}>
-          <Ionicons name="refresh" size={16} color="#ffffff" />
-          <Text style={styles.newGameText}>New Game</Text>
-        </TouchableOpacity>
+
+      {/* Instructions */}
+      <View style={styles.instructionsContainer}>
+        <Text style={styles.instructionsText}>
+          Join the numbers and get to the 2048 tile!
+        </Text>
       </View>
 
       {/* Game Board */}
       <View style={styles.gameContainer}>
-        <View style={styles.instructions}>
-          <Text style={styles.instructionsText}>
-            Join the tiles, get to 2048!
-          </Text>
-          <TouchableOpacity onPress={() => router.push('/history')}>
-            <Text style={styles.historyLink}>View History</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ position: 'relative', alignSelf: 'center' }}>
+        <View style={styles.boardWrapperOuter}>
+          <View style={[styles.boardWrapper, { width: BOARD_SIZE }]}>
           {/* 手势层：只覆盖棋盘区域 */}
           <View
             style={{ position: 'absolute', width: BOARD_SIZE, height: BOARD_SIZE, zIndex: 10 }}
@@ -888,14 +936,6 @@ export default function HomeScreen() {
             </View>
           </Animated.View>
         </View>
-
-        {/* Game instructions for mobile */}
-        <View style={styles.controls}>
-          <Text style={styles.controlsText}>
-            {Platform.OS === 'web' 
-              ? 'Use arrow keys or mouse swipe to move tiles' 
-              : 'Swipe in any direction to move tiles'}
-          </Text>
         </View>
       </View>
     </View>
@@ -905,7 +945,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: Platform.OS === 'web' ? 16 : 20,
+    paddingHorizontal: Platform.OS === 'web' ? 16 : 0,
     // H5 适配：添加最小高度
     ...(Platform.OS === 'web' && {
       minHeight: '100vh',
@@ -922,60 +962,137 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#776e65',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  headerWrapper: {
+    alignItems: 'center', // 居中header内容
     paddingVertical: Platform.OS === 'web' ? 16 : 20,
+    marginHorizontal: 14, // 左右各14px边距
     // H5 适配：添加顶部间距
     ...(Platform.OS === 'web' && {
       paddingTop: 20,
     }),
   },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start', // 顶部对齐，确保所有组件上边缘对齐
+    gap: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start', // 顶部对齐，确保所有组件上边缘对齐
+    paddingVertical: Platform.OS === 'web' ? 16 : 20,
+    gap: 10,
+    // H5 适配：添加顶部间距
+    ...(Platform.OS === 'web' && {
+      paddingTop: 20,
+    }),
+  },
+  headerRightContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  titleTile: {
+    backgroundColor: '#edc22e', // 2048瓦片的黄色背景
+    width: Platform.OS === 'web' ? 120 : 120,
+    height: Platform.OS === 'web' ? 120 : 120,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    // 确保内容不溢出
+    overflow: 'hidden',
+  },
+  titleTileText: {
+    fontSize: Platform.OS === 'web' ? 40 : 32,
+    fontWeight: 'bold',
+    color: '#f9f6f2', // 白色文字
+    textAlign: 'center',
+    includeFontPadding: false, // Android上移除额外字体padding
+    textAlignVertical: 'center', // Android上垂直居中
+  },
   scoreContainer: {
     flexDirection: 'row',
     gap: 10,
+    justifyContent: 'flex-end',
+    marginBottom: 10, // 与按钮之间的间距
   },
   scoreBox: {
     backgroundColor: '#bbada0',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    minWidth: Platform.OS === 'web' ? 80 : 70,
+    width: Platform.OS === 'web' ? 90 : 90, // 固定宽度
+    height: Platform.OS === 'web' ? 90 : 90, // 高度等于宽度，使其成为正方形
     alignItems: 'center',
+    justifyContent: 'center', // 垂直居中内容
   },
   scoreLabel: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#eee4da',
     marginBottom: 2,
   },
   scoreValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#ffffff',
   },
-  newGameButton: {
-    backgroundColor: '#8f7a66',
-    paddingHorizontal: 16,
+  headerButtonsContainer: {
+    flexDirection: 'row',
+    gap: 10, // 与scoreContainer的gap一致
+    justifyContent: 'flex-end',
+  },
+  buttonColumn: {
+    width: Platform.OS === 'web' ? 90 : 90, // 固定宽度，与scoreBox宽度完全一致
+    alignItems: 'center',
+  },
+  historyButton: {
+    backgroundColor: '#f67c5f', // 橙色背景
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 8,
-    flexDirection: 'row',
+    width: '100%',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
     // H5 适配：添加鼠标悬停效果
     ...(Platform.OS === 'web' && {
       cursor: 'pointer',
     }),
   },
-  newGameText: {
+  newGameButton: {
+    backgroundColor: '#f67c5f', // 橙色背景
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    // H5 适配：添加鼠标悬停效果
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
+  },
+  buttonText: {
     color: '#ffffff',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: Platform.OS === 'web' ? 12 : 12, // 缩小字号以适应更小的按钮
+    textAlign: 'center',
+  },
+  instructionsContainer: {
+    alignItems: 'center',
+    paddingVertical: Platform.OS === 'web' ? 12 : 16,
+    paddingHorizontal: Platform.OS === 'web' ? 16 : 20,
   },
   gameContainer: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'center', // 居中，与header内容对齐
+  },
+  boardWrapperOuter: {
+    alignItems: 'center', // 居中棋盘
+    marginHorizontal: 14, // 左右各14px边距，与header对齐
+  },
+  boardWrapper: {
+    position: 'relative',
   },
   instructions: {
     alignItems: 'center',
@@ -984,8 +1101,8 @@ const styles = StyleSheet.create({
   instructionsText: {
     fontSize: Platform.OS === 'web' ? 18 : 16,
     color: '#776e65',
-    marginBottom: 8,
     textAlign: 'center',
+    fontWeight: 'bold',
   },
   historyLink: {
     fontSize: 14,
