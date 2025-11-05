@@ -19,7 +19,7 @@ export default function TabLayout() {
           borderTopColor: '#e2e8f0',
           paddingTop: 4,
           paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 4) : 4,
-          height: Platform.OS === 'ios' ? 50 + Math.max(insets.bottom - 8, 0) : 50,
+          height: Platform.OS === 'ios' ? 30 + Math.max(insets.bottom - 8, 0) : 30,
         },
       }}>
       <Tabs.Screen
