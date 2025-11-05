@@ -12,7 +12,8 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+      {/* 只处理顶部安全区域，底部安全区域由各个页面（特别是 tab bar）自己处理 */}
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <GameProvider>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="onboarding" />
