@@ -9,7 +9,8 @@ import {
   Platform,
   PanResponder,
   Animated,
-  StatusBar
+  StatusBar,
+  AppState
 } from 'react-native';
 // import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
 import { router } from 'expo-router';
@@ -69,6 +70,33 @@ export default function HomeScreen() {
   const animatedValues = useRef({});
   const ghostTilesRef = useRef([]);
   const masterTimeline = useRef(new Animated.Value(0));
+  
+  // 跟踪已稳定的方块位置（不是新生成的），用于防止在应用恢复时错误触发动画
+  const stableTilesRef = useRef(new Set());
+  
+  // 保存应用进入后台时的游戏状态快照
+  const savedStateRef = useRef(null);
+  
+  // 标记是否正在从后台恢复，用于防止在恢复过程中触发新方块动画
+  const isRestoringRef = useRef(false);
+  
+  // 使用 ref 存储最新的游戏状态，避免在 AppState 监听器中频繁访问 state
+  const latestStateRef = useRef(state);
+  const latestMoveCountRef = useRef(moveCount);
+  const latestGameStartTimeRef = useRef(gameStartTime);
+  
+  // 保持 ref 与最新状态同步
+  useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
+  
+  useEffect(() => {
+    latestMoveCountRef.current = moveCount;
+  }, [moveCount]);
+  
+  useEffect(() => {
+    latestGameStartTimeRef.current = gameStartTime;
+  }, [gameStartTime]);
 
   // 用 ref 跟踪最新的 isAnimating 状态，确保手势处理器能获取到最新值
   const isAnimatingRef = useRef(state.isAnimating);
@@ -95,6 +123,76 @@ export default function HomeScreen() {
       }
     }
   }, []);
+
+  // 监听应用状态变化，处理前后台切换
+  // 使用 ref 存储最新状态，避免监听器频繁重建
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // 应用进入后台：保存当前游戏状态
+        // 使用 ref 获取最新状态，确保保存的是最新的游戏数据
+        const currentState = latestStateRef.current;
+        savedStateRef.current = {
+          board: currentState.board.map(row => [...row]), // 深拷贝棋盘
+          score: currentState.score,
+          bestScore: currentState.bestScore,
+          gameState: currentState.gameState,
+          hasWon: currentState.hasWon,
+          moveCount: latestMoveCountRef.current,
+          gameStartTime: latestGameStartTimeRef.current,
+          stableTiles: new Set(stableTilesRef.current), // 保存已稳定方块的位置
+        };
+      } else if (nextAppState === 'active') {
+        // 应用返回前台：恢复游戏状态
+        if (savedStateRef.current) {
+          isRestoringRef.current = true;
+          
+          // 恢复游戏状态
+          const savedState = savedStateRef.current;
+          dispatch({ type: 'SET_BOARD', payload: savedState.board });
+          dispatch({ type: 'UPDATE_SCORE', payload: savedState.score });
+          dispatch({ type: 'SET_GAME_STATE', payload: savedState.gameState });
+          dispatch({ type: 'SET_HAS_WON', payload: savedState.hasWon });
+          setMoveCount(savedState.moveCount);
+          if (savedState.gameStartTime) {
+            setGameStartTime(savedState.gameStartTime);
+          }
+          
+          // 恢复已稳定方块的标记
+          stableTilesRef.current = new Set(savedState.stableTiles);
+          
+          // 确保所有已存在的方块保持完全不透明（opacity = 1）
+          // 这防止了在恢复时错误触发新方块动画导致的半透明效果
+          requestAnimationFrame(() => {
+            for (let row = 0; row < 4; row++) {
+              for (let col = 0; col < 4; col++) {
+                if (savedState.board[row][col] !== null) {
+                  const key = `${row}-${col}`;
+                  const anim = animatedValues.current[key];
+                  if (anim) {
+                    // 直接设置 opacity 为 1，不触发动画
+                    anim.opacity.setValue(1);
+                    anim.scale.setValue(1);
+                    // 标记为已稳定，防止后续被误认为新方块
+                    stableTilesRef.current.add(key);
+                  }
+                }
+              }
+            }
+            
+            // 恢复完成后，清除恢复标记
+            setTimeout(() => {
+              isRestoringRef.current = false;
+            }, 100);
+          });
+        }
+      }
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [dispatch]); // 只依赖 dispatch，它不会变化
 
   // Initialize game on first load
   useEffect(() => {
@@ -261,6 +359,9 @@ export default function HomeScreen() {
     dispatch({ type: 'NEW_GAME', payload: { board: newBoard, gameData } });
     setGameStartTime(Date.now());
     setMoveCount(0);
+    
+    // 清空稳定方块标记，因为这是新游戏
+    stableTilesRef.current.clear();
 
     // Animate new tiles
     animateNewTiles(createEmptyBoard(), newBoard);
@@ -401,6 +502,10 @@ export default function HomeScreen() {
               anim.opacity.setValue(1);
               anim.scale.setValue(1);
             }
+            // 标记所有已存在的方块为稳定，防止在后续渲染中被误认为新方块
+            if (boardWithNewTile[row][col] !== null) {
+              stableTilesRef.current.add(key);
+            }
           }
         }
 
@@ -483,11 +588,24 @@ export default function HomeScreen() {
   }, [handleMove, animationPhase]);
 
   const animateNewTiles = (prevBoard, nextBoard) => {
+    // 如果正在从后台恢复，不触发新方块动画
+    // 这防止了在应用恢复时错误地将已存在的方块识别为新方块
+    if (isRestoringRef.current) {
+      return;
+    }
+    
     // Find new tiles and animate them
     for (let row = 0; row < 4; row++) {
       for (let col = 0; col < 4; col++) {
         if (nextBoard[row][col] && !prevBoard[row][col]) {
           const key = `${row}-${col}`;
+          
+          // 如果这个位置已经被标记为稳定方块，跳过动画
+          // 这防止了在状态恢复时错误触发动画
+          if (stableTilesRef.current.has(key)) {
+            continue;
+          }
+          
           const anim = animatedValues.current[key];
           
           if (anim) {
@@ -506,7 +624,10 @@ export default function HomeScreen() {
                 duration: 150,
                 useNativeDriver: true,
               }),
-            ]).start();
+            ]).start(() => {
+              // 动画完成后，标记为稳定方块
+              stableTilesRef.current.add(key);
+            });
           }
         }
       }
