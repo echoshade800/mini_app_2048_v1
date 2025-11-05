@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Dimensions
+  Dimensions,
+  FlatList
 } from 'react-native';
 // import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
 import { router } from 'expo-router';
@@ -20,6 +21,7 @@ const { width: screenWidth } = Dimensions.get('window');
  */
 export default function TutorialScreen() {
   const [currentStep, setCurrentStep] = useState(0);
+  const flatListRef = useRef(null);
 
   const tutorialSteps = [
     {
@@ -287,23 +289,43 @@ export default function TutorialScreen() {
     }
   ];
 
-  const nextStep = () => {
-    if (currentStep < tutorialSteps.length - 1) {
-      setCurrentStep(currentStep + 1);
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    if (viewableItems.length > 0) {
+      setCurrentStep(viewableItems[0].index);
     }
-  };
+  }).current;
 
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50
+  }).current;
 
   const finishTutorial = () => {
     router.back();
   };
 
-  const currentTutorial = tutorialSteps[currentStep];
+  const renderTutorialStep = ({ item, index }) => {
+    return (
+      <View style={[styles.pageContainer, { width: screenWidth }]}>
+        <ScrollView 
+          style={styles.content} 
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.stepHeader}>
+            <View style={styles.iconContainer}>
+              <Ionicons name={item.icon} size={32} color="#667eea" />
+            </View>
+            <Text style={styles.stepTitle}>{item.title}</Text>
+            <Text style={styles.stepDescription}>{item.description}</Text>
+          </View>
+
+          <View style={styles.stepContent}>
+            {item.content}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -333,40 +355,44 @@ export default function TutorialScreen() {
         </View>
       </View>
 
-      {/* Content */}
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.stepHeader}>
-          <View style={styles.iconContainer}>
-            <Ionicons name={currentTutorial.icon} size={32} color="#667eea" />
-          </View>
-          <Text style={styles.stepTitle}>{currentTutorial.title}</Text>
-          <Text style={styles.stepDescription}>{currentTutorial.description}</Text>
+      {/* Content - FlatList with horizontal scrolling */}
+      <FlatList
+        ref={flatListRef}
+        data={tutorialSteps}
+        renderItem={renderTutorialStep}
+        keyExtractor={(item, index) => index.toString()}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        scrollEventThrottle={16}
+        getItemLayout={(data, index) => ({
+          length: screenWidth,
+          offset: screenWidth * index,
+          index,
+        })}
+      />
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNavigation}>
+        {/* Page Indicators (Dots) */}
+        <View style={styles.indicatorContainer}>
+          {tutorialSteps.map((_, index) => (
+            <View
+              key={index}
+              style={[
+                styles.indicator,
+                index === currentStep && styles.indicatorActive
+              ]}
+            />
+          ))}
         </View>
 
-        <View style={styles.stepContent}>
-          {currentTutorial.content}
-        </View>
-      </ScrollView>
-
-      {/* Navigation */}
-      <View style={styles.navigation}>
-        {currentStep > 0 && (
-          <TouchableOpacity style={styles.navButton} onPress={prevStep}>
-            <Ionicons name="arrow-back" size={20} color="#667eea" />
-            <Text style={styles.navButtonText}>Previous</Text>
-          </TouchableOpacity>
-        )}
-        
-        <View style={styles.navSpacer} />
-        
-        {currentStep < tutorialSteps.length - 1 ? (
-          <TouchableOpacity style={styles.primaryNavButton} onPress={nextStep}>
-            <Text style={styles.primaryNavButtonText}>Next</Text>
-            <Ionicons name="arrow-forward" size={20} color="#ffffff" />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.primaryNavButton} onPress={finishTutorial}>
-            <Text style={styles.primaryNavButtonText}>Start Playing</Text>
+        {/* Finish Button (only on last page) */}
+        {currentStep === tutorialSteps.length - 1 && (
+          <TouchableOpacity style={styles.finishButton} onPress={finishTutorial}>
+            <Text style={styles.finishButtonText}>Start Playing</Text>
             <Ionicons name="play" size={20} color="#ffffff" />
           </TouchableOpacity>
         )}
@@ -422,6 +448,9 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#667eea',
     borderRadius: 2,
+  },
+  pageContainer: {
+    flex: 1,
   },
   content: {
     flex: 1,

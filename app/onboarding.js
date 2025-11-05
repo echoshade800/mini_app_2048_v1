@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Switch,
   Platform
 } from 'react-native';
 // import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
@@ -15,17 +14,15 @@ import { useGame } from '../contexts/GameContext';
 
 /**
  * Onboarding Screen
- * Purpose: Brief value prop + tutorial toggle + privacy policy
- * Shows welcome message, game rules, and "Don't show again" option
+ * Purpose: Brief value prop + tutorial link + privacy policy
+ * Shows welcome message and game rules (only on first launch)
  */
 export default function OnboardingScreen() {
   const { dispatch, saveGameData } = useGame();
-  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const handleGetStarted = async () => {
-    if (dontShowAgain) {
-      await saveGameData({ hasSeenOnboarding: true });
-    }
+    // 标记已看过onboarding，确保只在第一次登录时显示
+    await saveGameData({ hasSeenOnboarding: true });
     dispatch({ type: 'HIDE_ONBOARDING' });
     router.replace('/(tabs)');
   };
@@ -106,16 +103,6 @@ export default function OnboardingScreen() {
             <Ionicons name="help-circle-outline" size={20} color="#667eea" />
             <Text style={styles.tutorialButtonText}>View Interactive Tutorial</Text>
           </TouchableOpacity>
-
-          <View style={styles.switchContainer}>
-            <Switch
-              value={dontShowAgain}
-              onValueChange={setDontShowAgain}
-              trackColor={{ false: '#e2e8f0', true: '#667eea' }}
-              thumbColor={dontShowAgain ? '#ffffff' : '#cbd5e0'}
-            />
-            <Text style={styles.switchLabel}>Don't show this again</Text>
-          </View>
         </View>
 
         {/* CTA Button */}
@@ -227,16 +214,6 @@ const styles = StyleSheet.create({
     color: '#667eea',
     marginLeft: 8,
     fontWeight: '500',
-  },
-  switchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  switchLabel: {
-    fontSize: 16,
-    color: '#64748b',
-    marginLeft: 12,
   },
   startButton: {
     flexDirection: 'row',
