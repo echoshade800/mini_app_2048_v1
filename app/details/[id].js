@@ -9,7 +9,7 @@ import {
   Share,
   Platform
 } from 'react-native';
-// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../../contexts/GameContext';
@@ -22,12 +22,13 @@ import { useGame } from '../../contexts/GameContext';
 export default function DetailsScreen() {
   const { id } = useLocalSearchParams();
   const { state, dispatch, saveGameData } = useGame();
+  const insets = useSafeAreaInsets();
 
   const game = state.gameHistory.find(g => g.id === id);
 
   if (!game) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color="#ef4444" />
           <Text style={styles.errorTitle}>Game Not Found</Text>
@@ -41,7 +42,7 @@ export default function DetailsScreen() {
             <Text style={styles.backButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -155,10 +156,16 @@ export default function DetailsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[
+          styles.header,
+          Platform.OS === 'ios' && {
+            // 使用安全区信息动态计算顶部间距
+            paddingTop: insets.top,
+          },
+        ]}>
           <TouchableOpacity 
             style={styles.headerButton}
             onPress={() => router.back()}
@@ -318,7 +325,7 @@ export default function DetailsScreen() {
           <Text style={styles.playAgainText}>Play Again</Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

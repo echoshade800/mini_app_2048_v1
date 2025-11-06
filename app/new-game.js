@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
   Switch,
   Modal,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
-// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../contexts/GameContext';
@@ -21,6 +22,7 @@ import { initializeBoard } from '../utils/GameLogic';
  */
 export default function NewGameScreen() {
   const { state, dispatch, saveGameData } = useGame();
+  const insets = useSafeAreaInsets();
   const [tempSettings, setTempSettings] = useState({
     soundOn: state.soundOn,
     hapticsOn: state.hapticsOn,
@@ -92,10 +94,16 @@ export default function NewGameScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[
+          styles.header,
+          Platform.OS === 'ios' && {
+            // 使用安全区信息动态计算顶部间距
+            paddingTop: insets.top,
+          },
+        ]}>
           <TouchableOpacity 
             style={styles.backButton}
             onPress={() => router.back()}
@@ -236,7 +244,7 @@ export default function NewGameScreen() {
       </View>
 
       <ConfirmationModal />
-    </View>
+    </SafeAreaView>
   );
 }
 

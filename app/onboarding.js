@@ -7,7 +7,7 @@ import {
   ScrollView,
   Platform
 } from 'react-native';
-// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../contexts/GameContext';
@@ -19,6 +19,7 @@ import { useGame } from '../contexts/GameContext';
  */
 export default function OnboardingScreen() {
   const { dispatch, saveGameData } = useGame();
+  const insets = useSafeAreaInsets();
 
   const handleGetStarted = async () => {
     // 标记已看过onboarding，确保只在第一次登录时显示
@@ -32,10 +33,16 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[
+          styles.header,
+          Platform.OS === 'ios' && {
+            // 使用安全区信息动态计算顶部间距
+            paddingTop: insets.top,
+          },
+        ]}>
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>2048</Text>
           </View>
@@ -116,7 +123,7 @@ export default function OnboardingScreen() {
           <Text style={styles.privacyText}>Privacy Policy</Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

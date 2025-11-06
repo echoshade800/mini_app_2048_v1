@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  Linking
+  Linking,
+  Platform
 } from 'react-native';
-// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -18,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
  * Features: Version info, FAQ accordion, support links, tutorial access
  */
 export default function AboutScreen() {
+  const insets = useSafeAreaInsets();
   const APP_VERSION = '1.0.0';
 
   const faqData = [
@@ -90,10 +92,16 @@ export default function AboutScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[
+          styles.header,
+          Platform.OS === 'ios' && {
+            // 使用安全区信息动态计算顶部间距
+            paddingTop: insets.top,
+          },
+        ]}>
           <TouchableOpacity 
             style={styles.backButton}
             onPress={() => router.back()}
@@ -254,7 +262,7 @@ export default function AboutScreen() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

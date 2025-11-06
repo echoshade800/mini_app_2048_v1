@@ -9,7 +9,7 @@ import {
   Alert,
   Platform
 } from 'react-native';
-// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../../contexts/GameContext';
@@ -31,6 +31,7 @@ if (Platform.OS !== 'web') {
  */
 export default function ProfileScreen() {
   const { state, dispatch, saveGameData } = useGame();
+  const insets = useSafeAreaInsets();
 
   const updateSetting = async (key, value) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: { [key]: value } });
@@ -65,10 +66,17 @@ export default function ProfileScreen() {
   const recentGames = state.gameHistory.slice(0, 5);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[
+          styles.header,
+          Platform.OS === 'ios' && {
+            // 使用安全区信息动态计算顶部间距
+            // insets.top 是系统安全区的顶部高度（状态栏 + 刘海区域）
+            paddingTop: insets.top,
+          },
+        ]}>
           <Text style={styles.title}>Profile & Settings</Text>
         </View>
 
@@ -188,7 +196,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

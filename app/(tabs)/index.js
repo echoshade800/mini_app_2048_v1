@@ -12,7 +12,7 @@ import {
   StatusBar,
   AppState
 } from 'react-native';
-// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../../contexts/GameContext';
@@ -65,6 +65,7 @@ const toY = (row) => cellPosition(row);
  */
 export default function HomeScreen() {
   const { state, dispatch, saveGameData } = useGame();
+  const insets = useSafeAreaInsets();
   const [gameStartTime, setGameStartTime] = useState(null);
   const [moveCount, setMoveCount] = useState(0);
   const [animationPhase, setAnimationPhase] = useState('idle'); // 'idle', 'animating'
@@ -773,21 +774,29 @@ export default function HomeScreen() {
 
   if (state.isLoading) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         {/* H5 适配：添加状态栏 */}
         {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
         
         {/* Header */}
-        <View style={styles.headerWrapper}>
+        <View style={[
+          styles.headerWrapper,
+          Platform.OS === 'ios' && {
+            // 使用安全区信息动态计算顶部间距
+            // insets.top 是系统安全区的顶部高度（状态栏 + 刘海区域）
+            // 额外添加 20px 的视觉间距，确保 2048 标题有足够的视觉空间
+            paddingTop: insets.top,
+          },
+        ]}>
           <View style={[styles.headerContent, { width: CONTENT_WIDTH }]}>
             {/* 2048瓦片 */}
             <View style={styles.titleTile}>
@@ -938,7 +947,7 @@ export default function HomeScreen() {
         </View>
         </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -966,6 +975,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', // 居中header内容
     paddingVertical: Platform.OS === 'web' ? 16 : 20,
     marginHorizontal: 14, // 左右各14px边距
+    // iOS 的 paddingTop 在 JSX 中动态设置
     // H5 适配：添加顶部间距
     ...(Platform.OS === 'web' && {
       paddingTop: 20,

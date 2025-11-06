@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
-  FlatList
+  FlatList,
+  Platform
 } from 'react-native';
-// import { SafeAreaView } from 'react-native-safe-area-context'; // 移除，使用根布局的 SafeAreaView
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -20,6 +21,7 @@ const { width: screenWidth } = Dimensions.get('window');
  * Features: Step-by-step guide, visual examples, practice mode
  */
 export default function TutorialScreen() {
+  const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(0);
   const flatListRef = useRef(null);
 
@@ -328,9 +330,15 @@ export default function TutorialScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[
+        styles.header,
+        Platform.OS === 'ios' && {
+          // 使用安全区信息动态计算顶部间距
+          paddingTop: insets.top,
+        },
+      ]}>
         <TouchableOpacity 
           style={styles.closeButton}
           onPress={() => router.back()}
@@ -398,7 +406,7 @@ export default function TutorialScreen() {
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
