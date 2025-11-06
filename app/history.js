@@ -12,6 +12,7 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../contexts/GameContext';
+import { initializeBoard } from '../utils/GameLogic';
 
 /**
  * Game History Screen
@@ -19,16 +20,16 @@ import { useGame } from '../contexts/GameContext';
  * Features: List view, filter chips, search, detailed run info
  */
 export default function HistoryScreen() {
-  const { state } = useGame();
+  const { state, dispatch } = useGame();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
 
-  const filters = ['All', 'Wins', 'Top Scores'];
+  const filters = ['All', 'Wins', 'Loses'];
 
   const filteredGames = state.gameHistory.filter(game => {
     // Apply filter
     if (selectedFilter === 'Wins' && !game.won) return false;
-    if (selectedFilter === 'Top Scores' && game.finalScore < 1000) return false;
+    if (selectedFilter === 'Loses' && game.won) return false;
 
     // Apply search (search by score range or tile value)
     if (searchQuery) {
@@ -57,6 +58,21 @@ export default function HistoryScreen() {
     return minutes > 0 
       ? `${minutes}m ${remainingSeconds}s`
       : `${remainingSeconds}s`;
+  };
+
+  const handleStartNewGame = () => {
+    // Create new game
+    const newBoard = initializeBoard();
+    const gameData = {
+      id: Date.now().toString(),
+      startedAt: new Date().toISOString(),
+      moves: 0,
+    };
+
+    dispatch({ type: 'NEW_GAME', payload: { board: newBoard, gameData } });
+    
+    // Navigate to main game screen
+    router.replace('/(tabs)');
   };
 
   const renderGameItem = ({ item: game }) => (
@@ -186,7 +202,7 @@ export default function HistoryScreen() {
           {filteredGames.length} {filteredGames.length === 1 ? 'game' : 'games'} found
         </Text>
         {filteredGames.length > 0 && (
-          <TouchableOpacity onPress={() => router.push('/new-game')}>
+          <TouchableOpacity onPress={handleStartNewGame}>
             <Text style={styles.newGameLink}>Start New Game</Text>
           </TouchableOpacity>
         )}

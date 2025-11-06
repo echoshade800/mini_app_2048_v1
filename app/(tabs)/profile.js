@@ -74,11 +74,6 @@ export default function ProfileScreen() {
 
         {/* User Info */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="person-circle" size={24} color="#667eea" />
-            <Text style={styles.sectionTitle}>Player Info</Text>
-          </View>
-          
           <View style={styles.userInfo}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{state.nickname.charAt(0).toUpperCase()}</Text>
@@ -154,11 +149,6 @@ export default function ProfileScreen() {
 
         {/* Settings */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="settings" size={24} color="#8b5cf6" />
-            <Text style={styles.sectionTitle}>Preferences</Text>
-          </View>
-
           {/* Haptics (Mobile only) */}
           {Platform.OS !== 'web' && (
             <View style={styles.settingItem}>
@@ -338,11 +328,13 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 20,
   },
   settingInfo: {
     flex: 1,
-    marginBottom: 8,
   },
   settingLabel: {
     fontSize: 16,

@@ -383,7 +383,8 @@ export default function TutorialScreen() {
               key={index}
               style={[
                 styles.indicator,
-                index === currentStep && styles.indicatorActive
+                index === currentStep && styles.indicatorActive,
+                index < tutorialSteps.length - 1 && { marginRight: 8 }
               ]}
             />
           ))}
@@ -794,38 +795,36 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   
-  navigation: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  bottomNavigation: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 20,
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
+    alignItems: 'center',
   },
-  navButton: {
+  indicatorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
-  navButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#667eea',
-    marginLeft: 6,
+  indicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#cbd5e0',
   },
-  navSpacer: {
-    flex: 1,
+  indicatorActive: {
+    width: 24,
+    backgroundColor: '#667eea',
   },
-  primaryNavButton: {
+  finishButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
     backgroundColor: '#667eea',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 4 },
@@ -833,10 +832,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  primaryNavButtonText: {
+  finishButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
-    marginRight: 6,
+    marginRight: 8,
   },
 });
