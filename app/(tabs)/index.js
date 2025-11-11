@@ -774,7 +774,7 @@ export default function HomeScreen() {
 
   if (state.isLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
@@ -783,7 +783,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
         {/* H5 适配：添加状态栏 */}
         {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
         
@@ -946,6 +946,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#faf8ef',
     paddingHorizontal: Platform.OS === 'web' ? 16 : 0,
     // H5 适配：添加最小高度
     ...(Platform.OS === 'web' && {
