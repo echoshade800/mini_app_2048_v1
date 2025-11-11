@@ -97,13 +97,7 @@ export default function NewGameScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={[
-          styles.header,
-          Platform.OS === 'ios' && {
-            // 使用安全区信息动态计算顶部间距
-            paddingTop: insets.top,
-          },
-        ]}>
+        <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
             onPress={() => router.back()}

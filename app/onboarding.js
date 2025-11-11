@@ -36,13 +36,7 @@ export default function OnboardingScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
-        <View style={[
-          styles.header,
-          Platform.OS === 'ios' && {
-            // 使用安全区信息动态计算顶部间距
-            paddingTop: insets.top,
-          },
-        ]}>
+        <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>2048</Text>
           </View>

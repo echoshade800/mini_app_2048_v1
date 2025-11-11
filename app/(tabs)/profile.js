@@ -69,14 +69,7 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
-        <View style={[
-          styles.header,
-          Platform.OS === 'ios' && {
-            // 使用安全区信息动态计算顶部间距
-            // insets.top 是系统安全区的顶部高度（状态栏 + 刘海区域）
-            paddingTop: insets.top,
-          },
-        ]}>
+        <View style={styles.header}>
           <Text style={styles.title}>Profile & Settings</Text>
         </View>
 

@@ -788,15 +788,7 @@ export default function HomeScreen() {
         {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
         
         {/* Header */}
-        <View style={[
-          styles.headerWrapper,
-          Platform.OS === 'ios' && {
-            // 使用安全区信息动态计算顶部间距
-            // insets.top 是系统安全区的顶部高度（状态栏 + 刘海区域）
-            // 额外添加 20px 的视觉间距，确保 2048 标题有足够的视觉空间
-            paddingTop: insets.top,
-          },
-        ]}>
+        <View style={styles.headerWrapper}>
           <View style={[styles.headerContent, { width: CONTENT_WIDTH }]}>
             {/* 2048瓦片 */}
             <View style={styles.titleTile}>
@@ -975,11 +967,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', // 居中header内容
     paddingVertical: Platform.OS === 'web' ? 16 : 20,
     marginHorizontal: 14, // 左右各14px边距
-    // iOS 的 paddingTop 在 JSX 中动态设置
-    // H5 适配：添加顶部间距
-    ...(Platform.OS === 'web' && {
-      paddingTop: 20,
-    }),
+    // SafeAreaView 会自动处理顶部安全区
   },
   headerContent: {
     flexDirection: 'row',

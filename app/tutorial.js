@@ -332,13 +332,7 @@ export default function TutorialScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
-      <View style={[
-        styles.header,
-        Platform.OS === 'ios' && {
-          // 使用安全区信息动态计算顶部间距
-          paddingTop: insets.top,
-        },
-      ]}>
+      <View style={styles.header}>
         <TouchableOpacity 
           style={styles.closeButton}
           onPress={() => router.back()}
