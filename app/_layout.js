@@ -7,7 +7,12 @@ import { GameProvider } from '../contexts/GameContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function RootLayout() {
-  useFrameworkReady();
+  const appIsReady = useFrameworkReady();
+
+  // 在字体加载完成前不渲染任何内容
+  if (!appIsReady) {
+    return null;
+  }
 
   return (
     <SafeAreaProvider>

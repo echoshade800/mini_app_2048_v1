@@ -9,7 +9,7 @@ import {
   Alert,
   Platform
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../contexts/GameContext';
@@ -94,7 +94,7 @@ export default function NewGameScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
@@ -238,7 +238,7 @@ export default function NewGameScreen() {
       </View>
 
       <ConfirmationModal />
-    </SafeAreaView>
+    </View>
   );
 }
 

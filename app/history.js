@@ -9,7 +9,7 @@ import {
   FlatList,
   Platform
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../contexts/GameContext';
@@ -213,7 +213,7 @@ export default function HistoryScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <FlatList
         data={filteredGames}
         keyExtractor={(item) => item.id}
@@ -223,7 +223,7 @@ export default function HistoryScreen() {
         contentContainerStyle={filteredGames.length === 0 ? styles.emptyList : styles.list}
         showsVerticalScrollIndicator={false}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
