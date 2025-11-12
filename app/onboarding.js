@@ -35,9 +35,7 @@ export default function OnboardingScreen() {
   return (
     <View style={[styles.container, { 
       paddingTop: insets.top, 
-      paddingBottom: insets.bottom,
-      paddingLeft: insets.left,
-      paddingRight: insets.right
+      paddingBottom: insets.bottom
     }]}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}

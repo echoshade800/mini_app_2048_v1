@@ -30,9 +30,7 @@ export default function DetailsScreen() {
     return (
       <View style={[styles.container, { 
         paddingTop: insets.top, 
-        paddingBottom: insets.bottom,
-        paddingLeft: insets.left,
-        paddingRight: insets.right
+        paddingBottom: insets.bottom
       }]}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color="#ef4444" />
@@ -163,9 +161,7 @@ export default function DetailsScreen() {
   return (
     <View style={[styles.container, { 
       paddingTop: insets.top, 
-      paddingBottom: insets.bottom,
-      paddingLeft: insets.left,
-      paddingRight: insets.right
+      paddingBottom: insets.bottom
     }]}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}

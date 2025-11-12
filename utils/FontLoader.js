@@ -21,8 +21,6 @@ let loadError = null;
  */
 async function loadWithExpoFont() {
   try {
-    console.log('[FontLoader] 尝试方案1: expo-font 加载');
-    
     // 动态导入以避免模块未安装时崩溃
     const { Ionicons } = require('@expo/vector-icons');
     
@@ -30,11 +28,9 @@ async function loadWithExpoFont() {
       ...Ionicons.font,
     });
     
-    console.log('[FontLoader] ✅ 方案1成功: expo-font 加载完成');
     loadedMethod = FONT_LOAD_METHODS.EXPO_FONT;
     return true;
   } catch (error) {
-    console.log('[FontLoader] ❌ 方案1失败:', error.message);
     throw error;
   }
 }
@@ -44,15 +40,11 @@ async function loadWithExpoFont() {
  */
 async function checkPreloadedFont() {
   try {
-    console.log('[FontLoader] 尝试方案2: 检查预加载字体');
-    
     // 在React Native中没有直接API检查字体是否存在
     // 我们假设如果 expo-font 失败，字体可能已被宿主APP预加载
-    console.log('[FontLoader] ✅ 方案2: 假设字体已预加载，继续使用');
     loadedMethod = FONT_LOAD_METHODS.PRELOADED;
     return true;
   } catch (error) {
-    console.log('[FontLoader] ❌ 方案2失败:', error.message);
     throw error;
   }
 }
@@ -62,15 +54,11 @@ async function checkPreloadedFont() {
  */
 async function useNativeFontNames() {
   try {
-    console.log('[FontLoader] 尝试方案3: 使用原生字体名称');
-    
     // 在 iOS 上，字体名称可能与文件名不同
     // Ionicons.ttf 的字体名称是 "Ionicons"
     loadedMethod = FONT_LOAD_METHODS.NATIVE;
-    console.log('[FontLoader] ✅ 方案3: 使用原生字体名称');
     return true;
   } catch (error) {
-    console.log('[FontLoader] ❌ 方案3失败:', error.message);
     throw error;
   }
 }
@@ -79,29 +67,21 @@ async function useNativeFontNames() {
  * 主加载函数 - 依次尝试所有方案
  */
 export async function loadFonts() {
-  console.log('[FontLoader] 开始加载字体...');
-  console.log('[FontLoader] 平台:', Platform.OS);
-  
   // 方案1: expo-font
   try {
     await loadWithExpoFont();
     return { success: true, method: loadedMethod };
   } catch (error1) {
-    console.log('[FontLoader] 方案1失败，尝试方案2...');
-    
     // 方案2: 预加载字体
     try {
       await checkPreloadedFont();
       return { success: true, method: loadedMethod };
     } catch (error2) {
-      console.log('[FontLoader] 方案2失败，尝试方案3...');
-      
       // 方案3: 原生字体
       try {
         await useNativeFontNames();
         return { success: true, method: loadedMethod };
       } catch (error3) {
-        console.log('[FontLoader] 所有方案都失败了');
         loadedMethod = FONT_LOAD_METHODS.FAILED;
         loadError = error1.message;
         return { success: false, method: loadedMethod, error: loadError };

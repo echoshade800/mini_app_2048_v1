@@ -215,9 +215,7 @@ export default function HistoryScreen() {
   return (
     <View style={[styles.container, { 
       paddingTop: insets.top, 
-      paddingBottom: insets.bottom,
-      paddingLeft: insets.left,
-      paddingRight: insets.right
+      paddingBottom: insets.bottom
     }]}>
       <FlatList
         data={filteredGames}
@@ -238,10 +236,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   list: {
-    padding: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
   },
   emptyList: {
     flexGrow: 1,
+    paddingHorizontal: 20,
   },
   header: {
     flexDirection: 'row',

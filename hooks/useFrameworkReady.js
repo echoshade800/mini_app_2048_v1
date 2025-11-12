@@ -6,7 +6,7 @@ import { loadFonts } from '../utils/FontLoader';
 try {
   SplashScreen.preventAutoHideAsync();
 } catch (error) {
-  console.warn('[useFrameworkReady] SplashScreen.preventAutoHideAsync 不可用:', error.message);
+  // SplashScreen 在某些环境可能不可用，忽略错误
 }
 
 export function useFrameworkReady() {
@@ -15,18 +15,12 @@ export function useFrameworkReady() {
   useEffect(() => {
     async function prepare() {
       try {
-        console.log('[useFrameworkReady] 开始准备应用...');
-        
         // 使用多方案字体加载器
-        const result = await loadFonts();
-        
-        console.log('[useFrameworkReady] 字体加载结果:', result);
-        
-        // 无论成功与否都继续，避免卡住
+        await loadFonts();
         setIsReady(true);
       } catch (error) {
-        console.error('[useFrameworkReady] 准备过程出错:', error);
-        // 即使出错也设置为ready
+        console.error('Font loading error:', error);
+        // 即使出错也设置为ready，确保应用能正常启动
         setIsReady(true);
       }
     }
@@ -36,18 +30,15 @@ export function useFrameworkReady() {
 
   useEffect(() => {
     if (isReady) {
-      console.log('[useFrameworkReady] 应用准备完成');
-      
       // 隐藏启动屏
       try {
         SplashScreen.hideAsync();
       } catch (error) {
-        console.warn('[useFrameworkReady] SplashScreen.hideAsync 错误:', error.message);
+        // 忽略 SplashScreen 错误
       }
       
       // 通知宿主APP（Mini App 环境）
       if (typeof window !== 'undefined' && window.frameworkReady) {
-        console.log('[useFrameworkReady] 通知宿主APP ready');
         window.frameworkReady();
       }
     }
