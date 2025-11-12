@@ -1,7 +1,7 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform } from 'react-native';
+import { Platform, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useFrameworkReady } from '../hooks/useFrameworkReady';
 import { GameProvider } from '../contexts/GameContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,9 +9,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 export default function RootLayout() {
   const appIsReady = useFrameworkReady();
 
-  // 在字体加载完成前不渲染任何内容
+  // 在字体加载完成之前显示加载屏幕（恢复之前工作的方式）
   if (!appIsReady) {
-    return null;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#667eea" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
   }
 
   return (
@@ -35,3 +40,18 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#faf8ef',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#776e65',
+    fontWeight: '600',
+    marginTop: 16,
+  },
+});

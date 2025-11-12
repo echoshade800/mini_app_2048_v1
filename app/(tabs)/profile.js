@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../../contexts/GameContext';
+import { getFontLoadStatus } from '../../utils/FontLoader';
 
 // 动态导入 Slider，H5 环境可能不支持
 let Slider = null;
@@ -32,6 +33,13 @@ if (Platform.OS !== 'web') {
 export default function ProfileScreen() {
   const { state, dispatch, saveGameData } = useGame();
   const insets = useSafeAreaInsets();
+  const [fontStatus, setFontStatus] = useState(null);
+
+  useEffect(() => {
+    // 获取字体加载状态
+    const status = getFontLoadStatus();
+    setFontStatus(status);
+  }, []);
 
   const updateSetting = async (key, value) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: { [key]: value } });
@@ -112,6 +120,48 @@ export default function ProfileScreen() {
               </Text>
               <Text style={styles.statLabel}>Fastest Win</Text>
             </View>
+          </View>
+        </View>
+
+        {/* Font Status - Debug Info */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="code-slash" size={24} color="#06b6d4" />
+            <Text style={styles.sectionTitle}>Font Status (Debug)</Text>
+          </View>
+          
+          <View style={styles.debugContainer}>
+            <View style={styles.debugRow}>
+              <Text style={styles.debugLabel}>Status:</Text>
+              <Text style={[styles.debugValue, { color: fontStatus?.isLoaded ? '#10b981' : '#ef4444' }]}>
+                {fontStatus?.isLoaded ? '✓ Loaded' : '✗ Failed'}
+              </Text>
+            </View>
+            <View style={styles.debugRow}>
+              <Text style={styles.debugLabel}>Method:</Text>
+              <Text style={styles.debugValue}>{fontStatus?.method || 'unknown'}</Text>
+            </View>
+            {fontStatus?.error && (
+              <View style={styles.debugRow}>
+                <Text style={styles.debugLabel}>Error:</Text>
+                <Text style={[styles.debugValue, { color: '#ef4444', fontSize: 12 }]}>
+                  {fontStatus.error}
+                </Text>
+              </View>
+            )}
+            <View style={styles.debugRow}>
+              <Text style={styles.debugLabel}>Test Icons:</Text>
+              <View style={styles.iconTestContainer}>
+                <Ionicons name="home" size={24} color="#667eea" />
+                <Ionicons name="person" size={24} color="#667eea" />
+                <Ionicons name="arrow-up" size={24} color="#667eea" />
+                <Ionicons name="arrow-down" size={24} color="#667eea" />
+                <Ionicons name="trophy" size={24} color="#667eea" />
+              </View>
+            </View>
+            <Text style={styles.debugHint}>
+              如果上面的图标显示为"?",说明字体加载失败。请联系宿主APP开发者。
+            </Text>
           </View>
         </View>
 
@@ -451,5 +501,40 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#667eea',
     borderRadius: 4,
+  },
+  debugContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  debugRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  debugLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+    width: 80,
+  },
+  debugValue: {
+    fontSize: 14,
+    color: '#1e293b',
+    flex: 1,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  iconTestContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginLeft: 8,
+  },
+  debugHint: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });

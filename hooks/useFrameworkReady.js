@@ -1,40 +1,33 @@
 import { useEffect, useState } from 'react';
-import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { Ionicons } from '@expo/vector-icons';
+import { loadFonts } from '../utils/FontLoader';
+
+// 在模块级别调用，防止自动隐藏启动屏（恢复之前工作的方式）
+try {
+  SplashScreen.preventAutoHideAsync();
+} catch (error) {
+  console.warn('[useFrameworkReady] SplashScreen.preventAutoHideAsync 不可用:', error.message);
+}
 
 export function useFrameworkReady() {
-  const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     async function prepare() {
       try {
-        console.log('📱 Starting font loading...');
-        console.log('Ionicons.font:', Ionicons.font);
+        console.log('[useFrameworkReady] 开始准备应用...');
         
-        // 防止自动隐藏启动屏
-        try {
-          await SplashScreen.preventAutoHideAsync();
-          console.log('✅ SplashScreen prevented from hiding');
-        } catch (splashError) {
-          console.warn('⚠️ SplashScreen.preventAutoHideAsync error (可能在宿主APP中不可用):', splashError);
-        }
+        // 使用多方案字体加载器
+        const result = await loadFonts();
         
-        // 加载 Ionicons 字体
-        console.log('🔄 Loading Ionicons font...');
-        await Font.loadAsync({
-          ...Ionicons.font,
-        });
+        console.log('[useFrameworkReady] 字体加载结果:', result);
         
-        console.log('✅ Fonts loaded successfully!');
-        console.log('Loaded fonts:', Object.keys(Ionicons.font));
-        setFontsLoaded(true);
+        // 无论成功与否都继续，避免卡住
+        setIsReady(true);
       } catch (error) {
-        console.error('❌ Error loading fonts:', error);
-        console.error('Error details:', error.message);
-        console.error('Error stack:', error.stack);
-        // 即使加载失败也设置为true，避免卡在启动屏幕
-        setFontsLoaded(true);
+        console.error('[useFrameworkReady] 准备过程出错:', error);
+        // 即使出错也设置为ready
+        setIsReady(true);
       }
     }
 
@@ -42,22 +35,23 @@ export function useFrameworkReady() {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded) {
-      console.log('🎉 Fonts loaded, hiding splash screen...');
+    if (isReady) {
+      console.log('[useFrameworkReady] 应用准备完成');
       
-      // 字体加载完成后隐藏启动屏幕
-      SplashScreen.hideAsync().catch(err => {
-        console.warn('⚠️ SplashScreen.hideAsync error:', err);
-      });
+      // 隐藏启动屏
+      try {
+        SplashScreen.hideAsync();
+      } catch (error) {
+        console.warn('[useFrameworkReady] SplashScreen.hideAsync 错误:', error.message);
+      }
       
-      // 通知框架准备好了 (宿主APP环境)
-      if (typeof window !== 'undefined') {
-        console.log('📢 Notifying framework ready...');
-        window.frameworkReady?.();
+      // 通知宿主APP（Mini App 环境）
+      if (typeof window !== 'undefined' && window.frameworkReady) {
+        console.log('[useFrameworkReady] 通知宿主APP ready');
+        window.frameworkReady();
       }
     }
-  }, [fontsLoaded]);
+  }, [isReady]);
 
-  console.log('useFrameworkReady: fontsLoaded =', fontsLoaded);
-  return fontsLoaded;
+  return isReady;
 }
