@@ -330,7 +330,12 @@ export default function TutorialScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { 
+      paddingTop: insets.top, 
+      paddingBottom: insets.bottom,
+      paddingLeft: insets.left,
+      paddingRight: insets.right
+    }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 

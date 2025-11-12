@@ -213,7 +213,12 @@ export default function HistoryScreen() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { 
+      paddingTop: insets.top, 
+      paddingBottom: insets.bottom,
+      paddingLeft: insets.left,
+      paddingRight: insets.right
+    }]}>
       <FlatList
         data={filteredGames}
         keyExtractor={(item) => item.id}

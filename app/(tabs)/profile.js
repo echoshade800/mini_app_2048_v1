@@ -66,7 +66,11 @@ export default function ProfileScreen() {
   const recentGames = state.gameHistory.slice(0, 5);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { 
+      paddingTop: insets.top,
+      paddingLeft: insets.left,
+      paddingRight: insets.right
+    }]}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>

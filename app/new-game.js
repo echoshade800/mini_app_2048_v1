@@ -94,7 +94,12 @@ export default function NewGameScreen() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { 
+      paddingTop: insets.top, 
+      paddingBottom: insets.bottom,
+      paddingLeft: insets.left,
+      paddingRight: insets.right
+    }]}>
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>

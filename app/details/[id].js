@@ -28,7 +28,12 @@ export default function DetailsScreen() {
 
   if (!game) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={[styles.container, { 
+        paddingTop: insets.top, 
+        paddingBottom: insets.bottom,
+        paddingLeft: insets.left,
+        paddingRight: insets.right
+      }]}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color="#ef4444" />
           <Text style={styles.errorTitle}>Game Not Found</Text>
@@ -156,7 +161,12 @@ export default function DetailsScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { 
+      paddingTop: insets.top, 
+      paddingBottom: insets.bottom,
+      paddingLeft: insets.left,
+      paddingRight: insets.right
+    }]}>
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
