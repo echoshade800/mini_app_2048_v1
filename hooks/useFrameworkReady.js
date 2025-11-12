@@ -1,43 +1,22 @@
-import { useEffect, useState } from 'react';
-import * as Font from 'expo-font';
-import * as SplashScreen from 'expo-splash-screen';
-import { Ionicons } from '@expo/vector-icons';
-
-// 防止自动隐藏启动屏
-SplashScreen.preventAutoHideAsync();
+import { useEffect } from 'react';
+import FontLoader from '../utils/FontLoader';
 
 export function useFrameworkReady() {
-  const [appIsReady, setAppIsReady] = useState(false);
-
   useEffect(() => {
-    async function prepare() {
-      try {
-        // 预加载字体
-        await Font.loadAsync({
-          ...Ionicons.font,
-        });
-      } catch (e) {
-        console.warn('Error loading fonts:', e);
-      } finally {
-        // 告诉应用准备好了
-        setAppIsReady(true);
-      }
+    // 在开发模式下记录字体状态,帮助调试
+    if (__DEV__) {
+      FontLoader.logFontStatus();
     }
 
-    prepare();
+    // 通知框架准备就绪
+    if (typeof window !== 'undefined') {
+      window.frameworkReady?.();
+    }
   }, []);
 
-  useEffect(() => {
-    if (appIsReady) {
-      // 隐藏启动屏
-      SplashScreen.hideAsync();
-      
-      // 通知框架准备就绪
-      if (typeof window !== 'undefined') {
-        window.frameworkReady?.();
-      }
-    }
-  }, [appIsReady]);
-
-  return appIsReady;
+  // 在宿主 APP 环境中,字体需要通过以下方式加载:
+  // 1. 宿主 APP 在 Info.plist 中注册字体 (推荐)
+  // 2. 字体文件位于 ios/rnbundle/fonts/*.ttf
+  // 3. 详细配置请参考 ios/FONT_SETUP.md
+  return true;
 }

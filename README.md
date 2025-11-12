@@ -40,6 +40,7 @@ A beautifully designed 2048 puzzle game built with React Native and Expo, featur
 - Node.js 16+ and npm
 - Expo CLI: `npm install -g expo-cli`
 - For mobile development: Expo Go app on your device
+- For iOS Mini App deployment: AWS CLI configured
 
 ### Setup
 ```bash
@@ -57,6 +58,71 @@ npm run build:web
 
 # Preview web build locally
 npm run preview:web
+
+# Build iOS bundle for Mini App
+npm run build:ios
+
+# Deploy iOS bundle to S3
+npm run deploy:ios
+```
+
+## 📦 iOS Mini App 部署
+
+本应用支持作为 iOS Mini App 部署到宿主 APP 中。
+
+### 构建 iOS Bundle
+
+```bash
+npm run build:ios
+```
+
+此命令会:
+1. 使用 Metro bundler 打包 JavaScript 代码
+2. 复制所有资源文件到 `ios/rnbundle/` 目录
+3. 自动复制图标字体文件到 `ios/rnbundle/fonts/` 目录
+
+### 字体配置 (重要!)
+
+本应用使用 `@expo/vector-icons` 来显示图标。为了确保图标正常显示,宿主 APP 需要注册字体文件。
+
+**宿主 APP 配置步骤:**
+
+1. 确保字体文件在 bundle 的 `fonts/` 目录中
+2. 在宿主 APP 的 `Info.plist` 中添加字体注册:
+
+```xml
+<key>UIAppFonts</key>
+<array>
+    <string>fonts/Ionicons.ttf</string>
+    <string>fonts/MaterialIcons.ttf</string>
+    <!-- 其他字体文件 -->
+</array>
+```
+
+详细配置说明请参考 `ios/FONT_SETUP.md`
+
+### 部署到 S3
+
+```bash
+npm run deploy:ios
+```
+
+此命令会:
+1. 从 `package.json` 读取版本号
+2. 打包 `ios/` 目录为 zip 文件
+3. 上传到 S3 bucket
+4. 更新 monster config
+
+### 文件结构
+
+```
+ios/
+├── rnbundle/
+│   ├── main.jsbundle      # JS bundle
+│   ├── assets/            # 资源文件
+│   └── fonts/             # 图标字体文件 (重要!)
+├── fonts.json             # 字体配置文件
+└── FONT_SETUP.md         # 字体设置详细说明
 ```
 
 ## 🌐 H5/Web Support
