@@ -1,13 +1,22 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform } from 'react-native';
+import { Platform, View, Text, StyleSheet } from 'react-native';
 import { useFrameworkReady } from '../hooks/useFrameworkReady';
 import { GameProvider } from '../contexts/GameContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function RootLayout() {
-  useFrameworkReady();
+  const fontsLoaded = useFrameworkReady();
+
+  // 在字体加载完成之前显示加载屏幕
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaProvider>
@@ -30,3 +39,17 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#faf8ef',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#776e65',
+    fontWeight: '600',
+  },
+});
