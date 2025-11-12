@@ -12,7 +12,7 @@ import {
   StatusBar,
   AppState
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGame } from '../../contexts/GameContext';
@@ -774,16 +774,16 @@ export default function HomeScreen() {
 
   if (state.isLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* H5 适配：添加状态栏 */}
         {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" />}
         
@@ -939,7 +939,7 @@ export default function HomeScreen() {
         </View>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
