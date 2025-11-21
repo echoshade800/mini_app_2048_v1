@@ -5,8 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
-  Linking,
   Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,29 +65,6 @@ export default function AboutScreen() {
     setExpandedFaq(expandedFaq === id ? null : id);
   };
 
-  const openLink = (url, title) => {
-    if (Linking.canOpenURL(url)) {
-      Linking.openURL(url);
-    } else {
-      Alert.alert('Unable to Open', `Cannot open ${title} link.`);
-    }
-  };
-
-  const sendEmail = () => {
-    const email = 'support@2048game.app';
-    const subject = '2048 Game Support Request';
-    const url = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
-    
-    if (Linking.canOpenURL(url)) {
-      Linking.openURL(url);
-    } else {
-      Alert.alert(
-        'Email Support',
-        `Please send your questions to:\n${email}`,
-        [{ text: 'OK' }]
-      );
-    }
-  };
 
   return (
     <View style={[styles.container, { 
@@ -179,44 +154,6 @@ export default function AboutScreen() {
               )}
             </View>
           ))}
-        </View>
-
-        {/* Support Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="headset" size={24} color="#06b6d4" />
-            <Text style={styles.sectionTitle}>Support & Contact</Text>
-          </View>
-          
-          <TouchableOpacity style={styles.supportButton} onPress={sendEmail}>
-            <Ionicons name="mail" size={20} color="#667eea" />
-            <View style={styles.supportContent}>
-              <Text style={styles.supportTitle}>Email Support</Text>
-              <Text style={styles.supportDescription}>Get help with bugs or questions</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.supportButton}
-            onPress={() => openLink('https://github.com/2048-game', 'GitHub')}
-          >
-            <Ionicons name="logo-github" size={20} color="#1e293b" />
-            <View style={styles.supportContent}>
-              <Text style={styles.supportTitle}>GitHub Repository</Text>
-              <Text style={styles.supportDescription}>View source code and report issues</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.supportButton}
-            onPress={() => openLink('https://2048game.app/privacy', 'Privacy Policy')}
-          >
-            <Ionicons name="shield-checkmark" size={20} color="#10b981" />
-            <View style={styles.supportContent}>
-              <Text style={styles.supportTitle}>Privacy Policy</Text>
-              <Text style={styles.supportDescription}>How we handle your data</Text>
-            </View>
-          </TouchableOpacity>
         </View>
 
         {/* Game Tips */}
@@ -403,31 +340,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
     lineHeight: 20,
-  },
-  supportButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  supportContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  supportTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1e293b',
-    marginBottom: 2,
-  },
-  supportDescription: {
-    fontSize: 14,
-    color: '#64748b',
   },
   tipsList: {
     gap: 12,
