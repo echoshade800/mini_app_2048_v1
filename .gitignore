@@ -33,3 +33,7 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# bundle files (generated)
+rnbundle/
+ios/rnbundle/

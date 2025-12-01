@@ -75,19 +75,6 @@ export default function ProfileScreen() {
           <Text style={styles.title}>Profile & Settings</Text>
         </View>
 
-        {/* User Info */}
-        <View style={styles.section}>
-          <View style={styles.userInfo}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{state.nickname.charAt(0).toUpperCase()}</Text>
-            </View>
-            <View style={styles.userDetails}>
-              <Text style={styles.nickname}>{state.nickname}</Text>
-              <Text style={styles.uid}>ID: {state.uid || 'Local Player'}</Text>
-            </View>
-          </View>
-        </View>
-
         {/* Statistics */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -245,37 +232,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#667eea',
     fontWeight: '500',
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#667eea',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  userDetails: {
-    flex: 1,
-  },
-  nickname: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 4,
-  },
-  uid: {
-    fontSize: 14,
-    color: '#64748b',
   },
   statsGrid: {
     flexDirection: 'row',
